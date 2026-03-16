@@ -1,0 +1,15 @@
+model Invites {
+    id               String    @id @default(uuid())
+    email            String    @unique
+    inviteLink       String?    @unique
+    expiresAt        DateTime?
+    role             UserRole      @default(USER)
+    branchId         String
+    branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    isEmailSent      Boolean   @default(false)
+    isInviteAccepted Boolean   @default(false)
+    isDeleted        Boolean   @default(false)
+    deletedAt        DateTime?
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+}

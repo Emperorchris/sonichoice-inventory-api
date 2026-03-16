@@ -1,0 +1,124 @@
+import {
+	Injectable,
+	Logger,
+	NotFoundException,
+	InternalServerErrorException,
+	ConflictException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateBranchDto } from './dto/create-branch.dto';
+import { UpdateBranchDto } from './dto/update-branch.dto';
+import { Prisma } from 'generated/prisma/client';
+
+
+@Injectable()
+export class BranchService {
+	private readonly logger = new Logger(BranchService.name);
+
+	constructor(private readonly prisma: PrismaService) { }
+
+	async create(createBranchDto: CreateBranchDto) {
+		try {
+			if (createBranchDto.email) {
+				const existingBranch = await this.prisma.branch.findFirst({
+					where: { email: createBranchDto.email }
+				});
+				if (existingBranch) {
+					throw new ConflictException('A branch with the provided email already exists');
+				}
+			}
+
+			return await this.prisma.branch.create({
+				data: createBranchDto,
+			});
+		} catch (error) {
+			if (error instanceof ConflictException) {
+				throw error;
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === 'P2002'
+			) {
+				this.logger.warn(`Duplicate branch entry attempted: ${JSON.stringify(createBranchDto)}`);
+				throw new ConflictException('A branch with the provided details already exists');
+			}
+			this.logger.error(`Failed to create branch: ${error.message}`, error.stack);
+			throw new InternalServerErrorException('Failed to create branch');
+		}
+	}
+
+	async findAll() {
+		try {
+			const branches = await this.prisma.branch.findMany();
+			if (branches.length === 0) {
+				return { message: 'No branches found', data: [] };
+			}
+			return { message: 'Branches retrieved successfully', data: branches };
+		} catch (error) {
+			this.logger.error(`Failed to retrieve branches: ${error.message}`, error.stack);
+			throw new InternalServerErrorException('Failed to retrieve branches');
+		}
+	}
+
+	async findOne(id: string) {
+		try {
+			const branch = await this.prisma.branch.findFirst({ where: { id } });
+			if (!branch) {
+				throw new NotFoundException(`Branch with ID ${id} not found`);
+			}
+			return branch;
+		} catch (error) {
+			if (error instanceof NotFoundException) {
+				throw error;
+			}
+			this.logger.error(`Failed to retrieve branch ${id}: ${error.message}`, error.stack);
+			throw new InternalServerErrorException(`Failed to retrieve branch with ID ${id}`);
+		}
+	}
+
+	async update(id: string, updateBranchDto: UpdateBranchDto) {
+		try {
+			await this.findOne(id);
+
+			if (updateBranchDto.email) {
+				const existingBranch = await this.prisma.branch.findFirst({
+					where: { email: updateBranchDto.email }
+				});
+				if (existingBranch && existingBranch.id !== id) {
+					throw new ConflictException('A branch with the provided email already exists');
+				}
+			}
+
+			return await this.prisma.branch.update({
+				where: { id },
+				data: updateBranchDto,
+			});
+		} catch (error) {
+			if (error instanceof ConflictException || error instanceof NotFoundException) {
+				throw error;
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === 'P2002'
+			) {
+				this.logger.warn(`Duplicate entry on branch update for ID ${id}`);
+				throw new ConflictException('Update would result in a duplicate branch entry');
+			}
+			this.logger.error(`Failed to update branch ${id}: ${error.message}`, error.stack);
+			throw new InternalServerErrorException(`Failed to update branch with ID ${id}`);
+		}
+	}
+
+	async remove(id: string) {
+		try {
+			await this.findOne(id);
+			return await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() } });
+		} catch (error) {
+			if (error instanceof NotFoundException) {
+				throw error;
+			}
+			this.logger.error(`Failed to delete branch ${id}: ${error.message}`, error.stack);
+			throw new InternalServerErrorException(`Failed to delete branch with ID ${id}`);
+		}
+	}
+}

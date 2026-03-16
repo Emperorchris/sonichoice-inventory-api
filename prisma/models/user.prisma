@@ -1,0 +1,22 @@
+model User {
+    id           String         @id @default(uuid())
+    email        String         @unique
+    firstName    String
+    lastName     String
+    phone        String?
+    role         UserRole       @default(USER)
+    branchId     String
+    branch       Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    activityLogs ActivityLogs[]
+    password     String
+    isDeleted    Boolean        @default(false)
+    deletedAt    DateTime?
+    createdAt    DateTime       @default(now())
+    updatedAt    DateTime       @updatedAt
+}
+
+enum UserRole {
+    ADMIN
+    SUPERVISOR
+    USER
+}
