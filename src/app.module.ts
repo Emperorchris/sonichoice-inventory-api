@@ -6,14 +6,21 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { BranchModule } from './branch/branch.module';
 import { InvitesModule } from './invites/invites.module';
+import { MailModule } from './mail/mail.module';
+import authConfig from 'config/auth.config';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      load: [authConfig],
+    }),
     AuthModule,
     PrismaModule,
     BranchModule,
-    InvitesModule
+    InvitesModule,
+    MailModule
   ],
   controllers: [AppController],
   providers: [AppService],

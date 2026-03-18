@@ -1,8 +1,7 @@
 model User {
     id           String         @id @default(uuid())
     email        String         @unique
-    firstName    String
-    lastName     String
+    name         String?
     phone        String?
     role         UserRole       @default(USER)
     branchId     String

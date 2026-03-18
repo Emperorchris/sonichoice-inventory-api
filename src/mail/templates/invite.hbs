@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f7; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+    .header { background-color: #4F46E5; padding: 24px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+    .body { padding: 32px 24px; }
+    .body p { color: #333; font-size: 16px; line-height: 1.6; }
+    .btn { display: inline-block; padding: 14px 28px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 16px 0; }
+    .footer { padding: 16px 24px; text-align: center; color: #999; font-size: 12px; }
+    .link-fallback { color: #999; font-size: 13px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Sonichoice</h1>
+    </div>
+    <div class="body">
+      <h2>You're Invited!</h2>
+      <p>Hello {{name}}👋</p>
+      <p>You have been invited to join <strong>{{branchName}}</strong> on Sonichoice Inventory Management.</p>
+      <p>Click the button below to accept your invitation:</p>
+      <a href="{{inviteLink}}" class="btn">Accept Invitation</a>
+      <p style="color: #666; font-size: 14px;">This invitation will expire in 48 hours.</p>
+      <p class="link-fallback">If the button doesn't work, copy and paste this link:<br/>{{inviteLink}}</p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} Sonichoice. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

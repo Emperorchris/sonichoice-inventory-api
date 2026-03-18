@@ -1,15 +1,19 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { InvitesService } from './invites.service';
-import { CreateInviteDto } from './dto/create-invite.dto';
+import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 
-@Controller('admin')
+@Controller('invites')
 export class InvitesController {
-  constructor(private readonly invitesService: InvitesService) {}
+  constructor(private readonly invitesService: InvitesService) { }
 
-  @Post("send-invite")
+  @Post("send")
   create(@Body() createInviteDto: CreateInviteDto) {
-    return this.invitesService.create(createInviteDto);
+    return this.invitesService.sendInvite(createInviteDto);
+  }
+  @Post("accept")
+  acceptInvite(@Body() acceptInviteDto: AcceptInviteDto) {
+    return this.invitesService.acceptInvite(acceptInviteDto);
   }
 
   @Get()

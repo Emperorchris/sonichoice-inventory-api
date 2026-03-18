@@ -7,70 +7,62 @@ import { Pool } from 'pg';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
     private _softDeleteClient: any;
+    private pool: Pool;
 
     constructor() {
-        const connectionString = `${process.env.DATABASE_URL}`;
-        const pool = new Pool({ connectionString, idleTimeoutMillis: 30000 });
+        const pool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+        });
         const adapter = new PrismaPg(pool);
-        super({ adapter });
+        super({
+            adapter,
+        });
+        this.pool = pool;
 
+
+        const stripSensitive = (obj: any) => {
+            if (!obj) return obj;
+            delete obj.isDeleted;
+            delete obj.deletedAt;
+            delete obj.password;
+            return obj;
+        };
 
         // Extend the client to intercept all queries on soft-deletable models
         return this.$extends({
             query: {
                 // Apply to every model that has isDeleted — or target specific ones
                 $allModels: {
+                    async create({ args, query }) {
+                        const result = await query(args);
+                        return stripSensitive(result);
+                    },
                     async findFirst({ args, query }) {
                         args.where = { ...args.where, isDeleted: false };
-                        const result = await query(args);
-                        if (result) {
-                            delete (result as any).isDeleted;
-                            delete (result as any).deletedAt;
-                        }
-                        return result;
+                        return stripSensitive(await query(args));
                     },
                     async findMany({ args, query }) {
                         args.where = { ...args.where, isDeleted: false };
                         const results = await query(args);
                         if (Array.isArray(results)) {
-                            results.forEach(res => {
-                                delete (res as any).isDeleted;
-                                delete (res as any).deletedAt;
-                            });
+                            results.forEach(stripSensitive);
                         }
                         return results;
                     },
                     async findUnique({ args, query }) {
-                        // findUnique doesn't support isDeleted filtering directly,
-                        // so delegate to findFirst instead
                         const result = await (this as any).findFirst({ where: args.where });
-                        if (result) {
-                            delete (result as any).isDeleted;
-                            delete (result as any).deletedAt;
-                        }
-                        return result;
+                        return stripSensitive(result);
                     },
                     async update({ args, query }) {
-                        // Prevent updating soft-deleted records
                         args.where = { ...args.where, isDeleted: false };
-                        const result = await query(args);
-                        if (result) {
-                            delete (result as any).isDeleted;
-                            delete (result as any).deletedAt;
-                        }
-                        return result;
+                        return stripSensitive(await query(args));
                     },
                     async delete({ args, query }) {
-                        // Block hard deletes — soft delete instead
                         const result = await (this as any).update({
                             where: args.where,
                             data: { isDeleted: true, deletedAt: new Date() },
                         });
-                        if (result) {
-                            delete (result as any).isDeleted;
-                            delete (result as any).deletedAt;
-                        }
-                        return result;
+                        return stripSensitive(result);
                     },
                 },
             },
@@ -86,6 +78,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     async onModuleDestroy() {
         await this.$disconnect();
+        await this.pool.end();
         console.log('Prisma disconnected');
     }
 
