@@ -1,25 +1,24 @@
 import { Exclude } from 'class-transformer';
 import { UserRole } from 'generated/prisma/enums';
 
-export class Invite {
+export class User {
     id: string;
-    name?: string | null;
     email: string;
-    inviteLink?: string | null;
-    expiresAt?: Date | null;
+    name?: string | null;
+    phone?: string | null;
     role: UserRole;
     branchId: string;
-    isEmailSent: boolean;
-    isInviteAccepted: boolean;
     createdAt: Date;
     updatedAt: Date;
 
+    @Exclude()
+    password: string;
     @Exclude()
     isDeleted: boolean;
     @Exclude()
     deletedAt?: Date | null;
 
-    constructor(partial: Partial<Invite>) {
+    constructor(partial: Partial<User>) {
         Object.assign(this, partial);
     }
 }

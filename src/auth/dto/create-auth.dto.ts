@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString } from "class-validator";
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateAuthDto {
     @IsEmail()
@@ -19,4 +19,17 @@ export class CreateAuthDto {
 
     @IsString()
     branchId: string;
+}
+
+
+
+export class loginDto {
+    @IsNotEmpty({message: "Email is required"})
+    @IsEmail({},{message:"Please provide a valid email address"})
+    email: string;
+
+
+    @IsNotEmpty({message: "Password is required"})
+    @IsString()
+    password: string;
 }

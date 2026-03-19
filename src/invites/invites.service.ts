@@ -1,18 +1,36 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserRole } from 'generated/prisma/enums';
 import { MailService } from 'src/mail/mail.service';
 import * as bycrypt from 'bcrypt';
+import { ConfigService, ConfigType } from '@nestjs/config';
+import authConfig from 'config/auth.config';
+import appConfig from 'config/app.config';
+import { JwtService } from '@nestjs/jwt';
+import { StringValue } from 'ms';
+import { AuthService } from 'src/auth/auth.service';
+import { Invite } from './entities/invite.entity';
+import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class InvitesService {
-	constructor(private readonly prisma: PrismaService, private readonly mailService: MailService) { }
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly mailService: MailService,
+		// private readonly configService: ConfigService,
+		@Inject(authConfig.KEY)
+		private readonly authConfiguration: ConfigType<typeof authConfig>,
+		@Inject(appConfig.KEY)
+		private readonly appConfiguration: ConfigType<typeof appConfig>,
+		private readonly jwtService: JwtService,
+		private readonly authService: AuthService,
+	) { }
 
 	async sendInvite(createInviteDto: CreateInviteDto) {
 		try {
-			const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+			const frontendUrl = this.appConfiguration.frontendUrl || 'http://localhost:3000';
 
 			const branchExists = await this.prisma.branch.findFirst({
 				where: { id: createInviteDto.branchId }
@@ -48,12 +66,13 @@ export class InvitesService {
 
 			const inviteLink = `${frontendUrl}/accept-invite?invite_id=${tempInvite.id}&email=${tempInvite.email}&expires_at=${tempInvite.expiresAt}`;
 			try {
-				await this.mailService.sendInviteEmail( createInviteDto.name, createInviteDto.email, inviteLink, branchExists.name);
+				await this.mailService.sendInviteEmail(createInviteDto.name, createInviteDto.email, inviteLink, branchExists.name);
 			} catch (emailError) {
 				await this.prisma.invites.delete({ where: { id: tempInvite.id } });
 				throw new InternalServerErrorException({
 					message: 'Failed to send invite email',
 					details: emailError instanceof Error ? emailError.message : String(emailError),
+					statusCode: 500,
 				});
 			}
 
@@ -62,7 +81,7 @@ export class InvitesService {
 				data: { inviteLink, isEmailSent: true },
 			});
 
-			return invite;
+			return new Invite(invite);
 		} catch (error) {
 			throw new InternalServerErrorException({
 				message: 'Failed to create invite',
@@ -86,7 +105,7 @@ export class InvitesService {
 			if (!checkInvite) {
 				throw new NotFoundException('Invite not found or has been deleted');
 			}
-			
+
 			if (checkInvite.expiresAt) {
 				const hoursSinceExpiry = (new Date().getTime() - checkInvite.expiresAt.getTime()) / (1000 * 60 * 60);
 				if (hoursSinceExpiry >= 48) {
@@ -121,7 +140,17 @@ export class InvitesService {
 				data: { isInviteAccepted: true },
 			});
 
-			return user;
+			// const token = await this.jwtService.signAsync({
+			// 	sub: user.id,
+			// 	email: user.email,
+			// }, {
+			// 	secret: this.authConfiguration.jwtSecret,
+			// 	expiresIn: (this.authConfiguration.jwtExpiresIn || '1h') as StringValue,	
+			// })
+
+			const tokens = await this.authService.generateTokens(user.id);
+
+			return { user: new User(user), tokens };
 
 		} catch (error) {
 			throw new InternalServerErrorException({
@@ -130,6 +159,8 @@ export class InvitesService {
 			});
 		}
 	}
+
+
 
 	findAll() {
 		return `This action returns all invites`;

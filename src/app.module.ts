@@ -8,13 +8,14 @@ import { BranchModule } from './branch/branch.module';
 import { InvitesModule } from './invites/invites.module';
 import { MailModule } from './mail/mail.module';
 import authConfig from 'config/auth.config';
+import appConfig from 'config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [authConfig],
+      load: [authConfig, appConfig],
     }),
     AuthModule,
     PrismaModule,

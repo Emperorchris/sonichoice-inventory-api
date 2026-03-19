@@ -2,7 +2,7 @@ model Invites {
     id               String    @id @default(uuid())
     name             String?
     email            String    @unique
-    inviteLink       String?    @unique
+    inviteLink       String?   @unique @db.VarChar(512)
     expiresAt        DateTime?
     role             UserRole      @default(USER)
     branchId         String

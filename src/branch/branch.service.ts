@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { Prisma } from 'generated/prisma/client';
+import { Branch } from './entities/branch.entity';
 
 
 @Injectable()
@@ -28,9 +29,9 @@ export class BranchService {
 				}
 			}
 
-			return await this.prisma.branch.create({
+			return new Branch(await this.prisma.branch.create({
 				data: createBranchDto,
-			});
+			}));
 		} catch (error) {
 			if (error instanceof ConflictException) {
 				throw error;
@@ -53,7 +54,7 @@ export class BranchService {
 			if (branches.length === 0) {
 				return { message: 'No branches found', data: [] };
 			}
-			return { message: 'Branches retrieved successfully', data: branches };
+			return { message: 'Branches retrieved successfully', data: branches.map(b => new Branch(b)) };
 		} catch (error) {
 			this.logger.error(`Failed to retrieve branches: ${error.message}`, error.stack);
 			throw new InternalServerErrorException('Failed to retrieve branches');
@@ -66,7 +67,7 @@ export class BranchService {
 			if (!branch) {
 				throw new NotFoundException(`Branch with ID ${id} not found`);
 			}
-			return branch;
+			return new Branch(branch);
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;
@@ -89,10 +90,10 @@ export class BranchService {
 				}
 			}
 
-			return await this.prisma.branch.update({
+			return new Branch(await this.prisma.branch.update({
 				where: { id },
 				data: updateBranchDto,
-			});
+			}));
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
 				throw error;
@@ -112,7 +113,7 @@ export class BranchService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() } });
+			return new Branch(await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() } }));
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;

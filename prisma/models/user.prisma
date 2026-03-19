@@ -8,6 +8,7 @@ model User {
     branch       Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
     activityLogs ActivityLogs[]
     password     String
+    refreshTokens RefreshToken[]
     isDeleted    Boolean        @default(false)
     deletedAt    DateTime?
     createdAt    DateTime       @default(now())
