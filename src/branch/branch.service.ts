@@ -48,13 +48,24 @@ export class BranchService {
 		}
 	}
 
-	async findAll() {
+	async findAll(page: number = 1) {
 		try {
-			const branches = await this.prisma.branch.findMany();
+			const take = 50;
+			const skip = (page - 1) * take;
+
+			const [branches, total] = await Promise.all([
+				this.prisma.branch.findMany({ skip, take }),
+				this.prisma.branch.count(),
+			]);
+
 			if (branches.length === 0) {
-				return { message: 'No branches found', data: [] };
+				return { message: 'No branches found', data: [], meta: { total, page, lastPage: 0 } };
 			}
-			return { message: 'Branches retrieved successfully', data: branches.map(b => new Branch(b)) };
+			return {
+				message: 'Branches retrieved successfully',
+				data: branches.map(b => new Branch(b)),
+				meta: { total, page, lastPage: Math.ceil(total / take) },
+			};
 		} catch (error) {
 			this.logger.error(`Failed to retrieve branches: ${error.message}`, error.stack);
 			throw new InternalServerErrorException('Failed to retrieve branches');

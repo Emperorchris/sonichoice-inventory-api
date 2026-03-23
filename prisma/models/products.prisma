@@ -1,0 +1,19 @@
+model Product {
+    id          String      @id @default(uuid())
+    merchantId  String
+    merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+    trackingId  String      @unique
+    name        String
+    description String?
+    // price       Float
+    // stock       Int
+    quantity    Int         @default(0)
+    branchId    String
+    branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    dateReceived DateTime   @default(now())
+    additionalInfo String?  @db.VarChar(3000)
+    isDeleted   Boolean     @default(false)
+    deletedAt   DateTime?
+    createdAt   DateTime    @default(now())
+    updatedAt   DateTime    @updatedAt
+}

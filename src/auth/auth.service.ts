@@ -45,6 +45,9 @@ export class AuthService {
 	
 			return { user: new User(user), accessToken, refreshToken };
 		} catch (error) {
+			if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+				throw error;
+			}
 			throw new InternalServerErrorException(
 				error.message || 'An error occurred during login',
 			)

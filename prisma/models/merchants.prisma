@@ -1,0 +1,25 @@
+model Merchant{
+    id          String      @id @default(uuid())
+    name        String
+    email       String?      @unique
+    phone       String?
+    color       String?
+    // address     String?
+    // city        String?
+    // state       String?
+    // zip         String?
+    // country     String?
+    // branches    Branch[]
+    status      MerchantStatus @default(ACTIVE)
+    products    Product[]
+    isDeleted   Boolean     @default(false)
+    deletedAt   DateTime?
+    createdAt   DateTime    @default(now())
+    updatedAt   DateTime    @updatedAt
+}
+
+enum MerchantStatus {
+    ACTIVE
+    INACTIVE
+    SUSPENDED
+}

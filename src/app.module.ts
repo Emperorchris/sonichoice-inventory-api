@@ -7,6 +7,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { BranchModule } from './branch/branch.module';
 import { InvitesModule } from './invites/invites.module';
 import { MailModule } from './mail/mail.module';
+import { MerchantModule } from './merchant/merchant.module';
+import { ProductModule } from './product/product.module';
 import authConfig from 'config/auth.config';
 import appConfig from 'config/app.config';
 
@@ -21,7 +23,9 @@ import appConfig from 'config/app.config';
     PrismaModule,
     BranchModule,
     InvitesModule,
-    MailModule
+    MailModule,
+    MerchantModule,
+    ProductModule
   ],
   controllers: [AppController],
   providers: [AppService],

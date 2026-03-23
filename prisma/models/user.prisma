@@ -18,5 +18,6 @@ model User {
 enum UserRole {
     ADMIN
     SUPERVISOR
+    DIRECTOR
     USER
 }
