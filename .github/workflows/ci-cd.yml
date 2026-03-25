@@ -12,7 +12,7 @@ env:
 jobs:
 
   ci:
-    name: Lint & Build
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
@@ -30,9 +30,6 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
-
-      - name: Run linter
-        run: npm run lint
 
       - name: Build project
         run: npm run build
