@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -19,6 +20,34 @@ export class ProductController {
     @Query('merchantId') merchantId?: string,
   ) {
     return this.productService.findAll(Number(page) || 1, search, merchantId);
+  }
+
+  @Get('export/pdf')
+  async exportPdf(
+    @Res() res: Response,
+    @Query('search') search?: string,
+    @Query('merchantId') merchantId?: string,
+  ) {
+    const buffer = await this.productService.exportPdf(search, merchantId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename=products.pdf',
+    });
+    res.end(buffer);
+  }
+
+  @Get('export/excel')
+  async exportExcel(
+    @Res() res: Response,
+    @Query('search') search?: string,
+    @Query('merchantId') merchantId?: string,
+  ) {
+    const buffer = await this.productService.exportExcel(search, merchantId);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename=products.xlsx',
+    });
+    res.end(buffer);
   }
 
   @Get(':id')

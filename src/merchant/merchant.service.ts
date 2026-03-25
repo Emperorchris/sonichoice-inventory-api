@@ -48,18 +48,34 @@ export class MerchantService {
 		}
 	}
 
-	async findAll(page: number = 1) {
+	async findAll(page: number = 1, search?: string, status?: string) {
 		try {
 			const take = 50;
 			const skip = (page - 1) * take;
 
+			const where: any = {};
+
+			if (search) {
+				const term = search.toLowerCase();
+				where.OR = [
+					{ name: { contains: term } },
+					{ email: { contains: term } },
+					{ phone: { contains: term } },
+				];
+			}
+
+			if (status) {
+				where.status = status.toUpperCase();
+			}
+
 			const [merchants, total] = await Promise.all([
 				this.prisma.merchant.findMany({
+					where,
 					skip,
 					take,
 					include: { products: true },
 				}),
-				this.prisma.merchant.count(),
+				this.prisma.merchant.count({ where }),
 			]);
 
 			if (merchants.length === 0) {

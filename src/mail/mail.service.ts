@@ -60,4 +60,27 @@ export class MailService {
         }
     }
 
+
+    async sendPasswordResetEmail(name: string, email: string, resetLink: string) {
+        try {
+            const sendMail = await this.mailerService.sendMail({
+                to: email,
+                subject: 'Password Reset Request for Sonichoice Inventory Management',
+                template: 'password-reset',
+                context: {
+                    name,
+                    email,
+                    resetLink,
+                    year: new Date().getFullYear(),
+                },
+            });
+            if (!sendMail) {
+                throw new Error('Failed to send password reset email');
+            }
+            return true;
+        } catch (error) {
+            throw new Error(`Failed to send password reset email: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
 }

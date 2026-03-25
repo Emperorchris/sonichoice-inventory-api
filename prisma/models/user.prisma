@@ -9,6 +9,7 @@ model User {
     activityLogs ActivityLogs[]
     password     String
     refreshTokens RefreshToken[]
+    passwordResets PasswordReset[]
     isDeleted    Boolean        @default(false)
     deletedAt    DateTime?
     createdAt    DateTime       @default(now())

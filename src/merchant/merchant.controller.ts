@@ -13,8 +13,12 @@ export class MerchantController {
   }
 
   @Get()
-  findAll(@Query('page') page?: string) {
-    return this.merchantService.findAll(Number(page) || 1);
+  findAll(
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.merchantService.findAll(Number(page) || 1, search, status);
   }
 
   @Get(':id')
