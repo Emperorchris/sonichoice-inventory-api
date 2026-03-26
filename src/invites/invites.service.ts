@@ -85,7 +85,13 @@ export class InvitesService {
 			if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException) {
 				throw error;
 			}
-			throw new InternalServerErrorException('Failed to create invite', error);
+			throw new InternalServerErrorException({
+				message: 'Failed to create invite',
+				error: error instanceof Error ? error.message : String(error),
+				stackTrace: error instanceof Error ? error.stack : undefined,
+				statusCode: 500,
+				// throw new InternalServerErrorException('Failed to create invite', error instanceof Error ? error.message : String(error));
+			});
 		}
 	}
 
