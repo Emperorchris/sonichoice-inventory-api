@@ -43,16 +43,15 @@ export class InvitesService {
 			}
 
 			const existingInvite = await this.prisma.invites.findFirst({
-				where: {
-					email: createInviteDto.email,
-					isDeleted: false,
-				},
-				include: {
-					branch: true,
-				},
+				where: { email: createInviteDto.email },
 			});
+
 			if (existingInvite) {
-				throw new ConflictException('An invite with the provided email already exists');
+				if (!existingInvite.isDeleted && !existingInvite.isInviteAccepted) {
+					throw new ConflictException('An active invite with the provided email already exists');
+				}
+				// Remove old deleted/accepted invite so a new one can be created
+				await this.prisma.invites.delete({ where: { id: existingInvite.id } });
 			}
 
 
