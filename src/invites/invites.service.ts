@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { throwInternalError } from 'src/common/utils/error.util';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -70,7 +69,7 @@ export class InvitesService {
 				await this.mailService.sendInviteEmail(createInviteDto.name, createInviteDto.email, inviteLink, branchExists.name);
 			} catch (emailError) {
 				await this.prisma.invites.delete({ where: { id: tempInvite.id } });
-				throwInternalError('Failed to send invite email', emailError);
+				throw new InternalServerErrorException('Failed to send invite email', emailError);
 			}
 
 			const invite = await this.prisma.invites.update({
@@ -83,7 +82,7 @@ export class InvitesService {
 			if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException) {
 				throw error;
 			}
-			throwInternalError('Failed to create invite', error);
+			throw new InternalServerErrorException('Failed to create invite', error);
 		}
 	}
 
@@ -151,7 +150,7 @@ export class InvitesService {
 			if (error instanceof NotFoundException || error instanceof UnprocessableEntityException || error instanceof BadRequestException) {
 				throw error;
 			}
-			throwInternalError('Failed to accept invite', error);
+			throw new InternalServerErrorException('Failed to accept invite', error);
 		}
 	}
 

@@ -2,10 +2,10 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
+	InternalServerErrorException,
 	ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { throwInternalError } from 'src/common/utils/error.util';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { Prisma } from 'generated/prisma/client';
@@ -44,7 +44,7 @@ export class BranchService {
 				throw new ConflictException('A branch with the provided details already exists');
 			}
 			this.logger.error(`Failed to create branch: ${error.message}`, error.stack);
-			throwInternalError('Failed to create branch', error);
+			throw new InternalServerErrorException('Failed to create branch', error);
 		}
 	}
 
@@ -68,7 +68,7 @@ export class BranchService {
 			};
 		} catch (error) {
 			this.logger.error(`Failed to retrieve branches: ${error.message}`, error.stack);
-			throwInternalError('Failed to retrieve branches', error);
+			throw new InternalServerErrorException('Failed to retrieve branches', error);
 		}
 	}
 
@@ -84,7 +84,7 @@ export class BranchService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve branch ${id}: ${error.message}`, error.stack);
-			throwInternalError(`Failed to retrieve branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve branch with ID ${id}`, error);
 		}
 	}
 
@@ -117,7 +117,7 @@ export class BranchService {
 				throw new ConflictException('Update would result in a duplicate branch entry');
 			}
 			this.logger.error(`Failed to update branch ${id}: ${error.message}`, error.stack);
-			throwInternalError(`Failed to update branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update branch with ID ${id}`, error);
 		}
 	}
 
@@ -130,7 +130,7 @@ export class BranchService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete branch ${id}: ${error.message}`, error.stack);
-			throwInternalError(`Failed to delete branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete branch with ID ${id}`, error);
 		}
 	}
 }
