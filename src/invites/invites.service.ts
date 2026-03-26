@@ -69,11 +69,7 @@ export class InvitesService {
 				await this.mailService.sendInviteEmail(createInviteDto.name, createInviteDto.email, inviteLink, branchExists.name);
 			} catch (emailError) {
 				await this.prisma.invites.delete({ where: { id: tempInvite.id } });
-				throw new InternalServerErrorException({
-					message: 'Failed to send invite email',
-					details: emailError instanceof Error ? emailError.message : String(emailError),
-					statusCode: 500,
-				});
+				throw new InternalServerErrorException('Failed to send invite email', emailError);
 			}
 
 			const invite = await this.prisma.invites.update({
@@ -83,12 +79,10 @@ export class InvitesService {
 
 			return new Invite(invite);
 		} catch (error) {
-			throw new InternalServerErrorException({
-				message: 'Failed to create invite',
-				details: error instanceof Error ? error.message : String(error),
-			});
-			// throw error; // Re-throw the original error for better debugging
-
+			if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException) {
+				throw error;
+			}
+			throw new InternalServerErrorException('Failed to create invite', error);
 		}
 	}
 
@@ -153,10 +147,10 @@ export class InvitesService {
 			return { user: new User(user), tokens };
 
 		} catch (error) {
-			throw new InternalServerErrorException({
-				message: 'Failed to accept invite',
-				details: error instanceof Error ? error.message : String(error),
-			});
+			if (error instanceof NotFoundException || error instanceof UnprocessableEntityException || error instanceof BadRequestException) {
+				throw error;
+			}
+			throw new InternalServerErrorException('Failed to accept invite', error);
 		}
 	}
 

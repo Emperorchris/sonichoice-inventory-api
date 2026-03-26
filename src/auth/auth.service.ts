@@ -67,7 +67,7 @@ export class AuthService {
 				throw error;
 			}
 			throw new InternalServerErrorException(
-				error.message || 'An error occurred during registration',
+				error.message || 'An error occurred during registration', error,
 			);
 		}
 	}
@@ -98,7 +98,7 @@ export class AuthService {
 				throw error;
 			}
 			throw new InternalServerErrorException(
-				error.message || 'An error occurred during login',
+				error.message || 'An error occurred during login', error,
 			)
 		}
 	}
@@ -153,7 +153,7 @@ export class AuthService {
 				throw error;
 			}
 			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password update',
+				error.message || 'An error occurred during password update', error,
 			);
 		}
 	}
@@ -199,7 +199,7 @@ export class AuthService {
 				throw error;
 			}
 			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password reset',
+				error.message || 'An error occurred during password reset', error,
 			);
 		}
 	}
@@ -238,7 +238,7 @@ export class AuthService {
 				throw error;
 			}
 			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password reset',
+				error.message || 'An error occurred during password reset', error,
 			);
 		}
 	}
