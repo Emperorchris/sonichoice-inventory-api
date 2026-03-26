@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { throwInternalError } from 'src/common/utils/error.util';
+import { throwInternalError } from '../common/utils/error.util';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
