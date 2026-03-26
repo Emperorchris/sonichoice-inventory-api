@@ -26,7 +26,7 @@ Since you're on shared hosting without terminal access, follow these steps using
 | **Application mode** | `Production` |
 | **Application root** | `sonichoice-api` (or your preferred folder name) |
 | **Application URL** | Choose your domain/subdomain |
-| **Application startup file** | `dist/main.js` |
+| **Application startup file** | `dist/src/main.js` |
 
 4. Click **CREATE**
 
@@ -91,7 +91,7 @@ After every push to `main`:
 
 ## Troubleshooting
 
-- **App not starting?** Check the **Application startup file** is set to `dist/main.js`
+- **App not starting?** Check the **Application startup file** is set to `dist/src/main.js`
 - **Database errors?** Verify `DATABASE_URL` is correct and the DB user has full privileges
 - **502 errors?** Click **RESTART** in the Node.js App panel. Check that `PORT` env var matches what cPanel expects
 - **FTP deploy failing?** Double-check FTP credentials and that `FTP_APP_PATH` matches your Application root
