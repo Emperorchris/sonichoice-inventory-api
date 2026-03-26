@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { throwInternalError } from 'src/common/utils/error.util';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -16,6 +17,8 @@ import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class InvitesService {
+	private readonly logger = new Logger(InvitesService.name);
+
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly mailService: MailService,
@@ -156,19 +159,67 @@ export class InvitesService {
 
 
 
-	findAll() {
-		return `This action returns all invites`;
+	async findAll(page: number = 1, search?: string) {
+		try {
+			const take = 50;
+			const skip = (page - 1) * take;
+
+			const where: any = { isDeleted: false };
+
+			if (search) {
+				const term = search.toLowerCase();
+				where.OR = [
+					{ name: { contains: term } },
+					{ email: { contains: term } },
+				];
+			}
+
+			const [invites, total] = await Promise.all([
+				this.prisma.invites.findMany({
+					where,
+					skip,
+					take,
+					include: { branch: true },
+					orderBy: { createdAt: 'desc' },
+				}),
+				this.prisma.invites.count({ where }),
+			]);
+
+			if (invites.length === 0) {
+				return { message: 'No invites found', data: [], meta: { total, page, lastPage: 0 } };
+			}
+			return {
+				message: 'Invites retrieved successfully',
+				data: invites.map(i => new Invite(i)),
+				meta: { total, page, lastPage: Math.ceil(total / take) },
+			};
+		} catch (error) {
+			this.logger.error(`Failed to retrieve invites: ${error.message}`, error.stack);
+			throwInternalError('Failed to retrieve invites', error);
+		}
 	}
 
-	findOne(id: number) {
-		return `This action returns a #${id} invite`;
-	}
+	async remove(id: string) {
+		try {
+			const invite = await this.prisma.invites.findFirst({
+				where: { id, isDeleted: false },
+			});
+			if (!invite) {
+				throw new NotFoundException(`Invite with ID ${id} not found`);
+			}
 
-	update(id: number, updateInviteDto: UpdateInviteDto) {
-		return `This action updates a #${id} invite`;
-	}
+			await this.prisma.invites.update({
+				where: { id },
+				data: { isDeleted: true, deletedAt: new Date() },
+			});
 
-	remove(id: number) {
-		return `This action removes a #${id} invite`;
+			return { message: 'Invite deleted successfully' };
+		} catch (error) {
+			if (error instanceof NotFoundException) {
+				throw error;
+			}
+			this.logger.error(`Failed to delete invite ${id}: ${error.message}`, error.stack);
+			throwInternalError(`Failed to delete invite with ID ${id}`, error);
+		}
 	}
 }

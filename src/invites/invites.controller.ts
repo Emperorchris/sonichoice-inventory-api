@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query } from '@nestjs/common';
 import { InvitesService } from './invites.service';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
-import { UpdateInviteDto } from './dto/update-invite.dto';
+import { IsPublic } from 'decorator/isPublic.decorator';
 
 @Controller('invites')
 export class InvitesController {
@@ -16,23 +16,18 @@ export class InvitesController {
     return this.invitesService.acceptInvite(acceptInviteDto);
   }
 
+  @IsPublic()
   @Get()
-  findAll() {
-    return this.invitesService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.invitesService.findAll(Number(page) || 1, search);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.invitesService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateInviteDto: UpdateInviteDto) {
-    return this.invitesService.update(+id, updateInviteDto);
-  }
-
+  @IsPublic()
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.invitesService.remove(+id);
+    return this.invitesService.remove(id);
   }
 }
