@@ -1,23 +1,24 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
-import e from "express";
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { UserRole } from "generated/prisma/enums";
 
 export class CreateAuthDto {
-    @IsEmail()
+    @IsNotEmpty({ message: "Email is required" })
+    @IsEmail({}, { message: "Please provide a valid email address" })
     email: string;
 
+    @IsNotEmpty({ message: "Password is required" })
     @IsString()
     password: string;
 
+    @IsNotEmpty({ message: "Name is required" })
     @IsString()
-    firstName: string;
+    name: string;
 
-    @IsString()
-    lastName: string;
-
-    @IsString()
     @IsOptional()
-    phone: string;
+    @IsEnum(UserRole)
+    role?: UserRole;
 
+    @IsNotEmpty({ message: "Branch ID is required" })
     @IsString()
     branchId: string;
 }

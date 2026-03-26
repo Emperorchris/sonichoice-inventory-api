@@ -13,6 +13,12 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @IsPublic()
+  @Post("private/register")
+  register(@Body() createAuthDto: CreateAuthDto) {
+    return this.authService.register(createAuthDto);
+  }
+
   @Post('password-update')
   updatePassword(@Body() updatePasswordDto: UpdatePasswordDto, @Req() req: any) {
     return this.authService.updatePassword(updatePasswordDto, req.user.id);

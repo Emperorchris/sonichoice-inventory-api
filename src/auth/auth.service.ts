@@ -28,6 +28,50 @@ export class AuthService {
 
 	) { }
 
+
+	async register(createAuthDto: CreateAuthDto) {
+		try {
+			const { email, password, branchId, ...rest } = createAuthDto;
+
+			const existingUser = await this.prismaService.user.findUnique({
+				where: { email },
+			});
+
+			if (existingUser) {
+				throw new UnprocessableEntityException('A user with the provided email already exists');
+			}
+
+			const existingBranch = await this.prismaService.branch.findUnique({
+				where: { id: branchId },
+			});
+
+			if (!existingBranch) {
+				throw new UnprocessableEntityException('Branch not found');
+			}
+
+
+			const hashedPassword = await bcrypt.hash(password, 10);
+
+			const newUser = await this.prismaService.user.create({
+				data: {
+					email,
+					password: hashedPassword,
+					branchId,
+					...rest,
+				},
+			});
+
+			return new User(newUser);
+		} catch (error) {
+			if (error instanceof UnprocessableEntityException) {
+				throw error;
+			}
+			throw new InternalServerErrorException(
+				error.message || 'An error occurred during registration',
+			);
+		}
+	}
+
 	async login(loginDto: loginDto) {
 		try {
 			const { email, password } = loginDto;
@@ -138,12 +182,12 @@ export class AuthService {
 					token: resetToken,
 					expiryDate: resetTokenExpiry,
 				},
-				include: { user: true }				
+				include: { user: true }
 			});
-			
+
 			const frontendUrl = this.appConfiguration.frontendUrl;
 			const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
-			
+
 			const isPasswordResetEmailSent = await this.mailerService.sendPasswordResetEmail(user.name ?? '', user.email, resetLink);
 			if (!isPasswordResetEmailSent) {
 				throw new InternalServerErrorException('Failed to send password reset email');
