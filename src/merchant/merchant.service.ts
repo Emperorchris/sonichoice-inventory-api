@@ -2,10 +2,10 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
-	InternalServerErrorException,
 	ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { throwInternalError } from 'src/common/utils/error.util';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
 import { Prisma } from 'generated/prisma/client';
@@ -44,7 +44,7 @@ export class MerchantService {
 				throw new ConflictException('A merchant with the provided details already exists');
 			}
 			this.logger.error(`Failed to create merchant: ${error.message}`, error.stack);
-			throw new InternalServerErrorException('Failed to create merchant', error);
+			throwInternalError('Failed to create merchant', error);
 		}
 	}
 
@@ -88,7 +88,7 @@ export class MerchantService {
 			};
 		} catch (error) {
 			this.logger.error(`Failed to retrieve merchants: ${error.message}`, error.stack);
-			throw new InternalServerErrorException('Failed to retrieve merchants', error);
+			throwInternalError('Failed to retrieve merchants', error);
 		}
 	}
 
@@ -107,7 +107,7 @@ export class MerchantService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve merchant with ID ${id}`, error);
+			throwInternalError(`Failed to retrieve merchant with ID ${id}`, error);
 		}
 	}
 
@@ -141,7 +141,7 @@ export class MerchantService {
 				throw new ConflictException('Update would result in a duplicate merchant entry');
 			}
 			this.logger.error(`Failed to update merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update merchant with ID ${id}`, error);
+			throwInternalError(`Failed to update merchant with ID ${id}`, error);
 		}
 	}
 
@@ -158,7 +158,7 @@ export class MerchantService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete merchant with ID ${id}`, error);
+			throwInternalError(`Failed to delete merchant with ID ${id}`, error);
 		}
 	}
 }

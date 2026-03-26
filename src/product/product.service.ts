@@ -2,8 +2,8 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
-	InternalServerErrorException,
 } from '@nestjs/common';
+import { throwInternalError } from 'src/common/utils/error.util';
 import { randomBytes } from 'crypto';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
@@ -160,7 +160,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to create product: ${error.message}`, error.stack);
-			throw new InternalServerErrorException('Failed to create product', error);
+			throwInternalError('Failed to create product', error);
 		}
 	}
 
@@ -190,7 +190,7 @@ export class ProductService {
 			};
 		} catch (error) {
 			this.logger.error(`Failed to retrieve products: ${error.message}`, error.stack);
-			throw new InternalServerErrorException('Failed to retrieve products', error);
+			throwInternalError('Failed to retrieve products', error);
 		}
 	}
 
@@ -209,7 +209,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve product with ID ${id}`, error);
+			throwInternalError(`Failed to retrieve product with ID ${id}`, error);
 		}
 	}
 
@@ -236,7 +236,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to update product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update product with ID ${id}`, error);
+			throwInternalError(`Failed to update product with ID ${id}`, error);
 		}
 	}
 
@@ -253,7 +253,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete product with ID ${id}`, error);
+			throwInternalError(`Failed to delete product with ID ${id}`, error);
 		}
 	}
 }

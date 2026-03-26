@@ -1,4 +1,5 @@
 import { ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { throwInternalError } from 'src/common/utils/error.util';
 import { CreateAuthDto, loginDto, ResetPasswordDto, UpdatePasswordDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -66,9 +67,7 @@ export class AuthService {
 			if (error instanceof UnprocessableEntityException) {
 				throw error;
 			}
-			throw new InternalServerErrorException(
-				error.message || 'An error occurred during registration', error,
-			);
+			throwInternalError(error.message || 'An error occurred during registration', error);
 		}
 	}
 
@@ -97,9 +96,7 @@ export class AuthService {
 			if (error instanceof NotFoundException || error instanceof ForbiddenException) {
 				throw error;
 			}
-			throw new InternalServerErrorException(
-				error.message || 'An error occurred during login', error,
-			)
+			throwInternalError(error.message || 'An error occurred during login', error);
 		}
 	}
 
@@ -152,9 +149,7 @@ export class AuthService {
 			if (error instanceof NotFoundException || error instanceof ForbiddenException) {
 				throw error;
 			}
-			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password update', error,
-			);
+			throwInternalError(error.message || 'An error occurred during password update', error);
 		}
 	}
 
@@ -198,9 +193,7 @@ export class AuthService {
 			if (error instanceof NotFoundException || error instanceof UnprocessableEntityException || error instanceof InternalServerErrorException) {
 				throw error;
 			}
-			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password reset', error,
-			);
+			throwInternalError(error.message || 'An error occurred during password reset', error);
 		}
 	}
 
@@ -237,9 +230,7 @@ export class AuthService {
 			if (error instanceof NotFoundException || error instanceof UnprocessableEntityException) {
 				throw error;
 			}
-			throw new InternalServerErrorException(
-				error.message || 'An error occurred during password reset', error,
-			);
+			throwInternalError(error.message || 'An error occurred during password reset', error);
 		}
 	}
 
