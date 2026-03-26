@@ -10,6 +10,7 @@ import appConfig from 'config/app.config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from 'guards/jwt-auth.guard';
 import { RolesGuard } from 'guards/roles.guard';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   controllers: [AuthController],
@@ -21,9 +22,9 @@ import { RolesGuard } from 'guards/roles.guard';
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN as StringValue },
-      // signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || 3600 },
     }),
     PrismaModule,
+    MailModule,
   ]
 })
 export class AuthModule {}
