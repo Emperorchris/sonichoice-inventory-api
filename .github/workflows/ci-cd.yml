@@ -45,6 +45,7 @@ jobs:
             package-lock.json
             prisma/
             generated/
+            scripts/
           retention-days: 1
 
 
@@ -80,4 +81,3 @@ jobs:
             **/test/**
             **/.github/**
             **/coverage/**
-            **/scripts/**
