@@ -71,7 +71,11 @@ export class InvitesService {
 				await this.mailService.sendInviteEmail(createInviteDto.name, createInviteDto.email, inviteLink, branchExists.name);
 			} catch (emailError) {
 				await this.prisma.invites.delete({ where: { id: tempInvite.id } });
-				throw new InternalServerErrorException('Failed to send invite email', emailError);
+				throw new InternalServerErrorException({
+					message: 'Failed to send invite email',
+					error: emailError instanceof Error ? emailError.message : String(emailError),
+					stackTrace: emailError instanceof Error ? emailError.stack : undefined,
+				});
 			}
 
 			const invite = await this.prisma.invites.update({
