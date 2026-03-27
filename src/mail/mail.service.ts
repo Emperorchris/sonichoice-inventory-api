@@ -1,59 +1,28 @@
-import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+const { MailtrapClient } = require('mailtrap');
 
 @Injectable()
 export class MailService {
-    //  private transporter: nodemailer.Transporter;
+    private readonly mailtrapClient: any;
+    private readonly sender: { email: string; name: string };
 
-    // constructor(private readonly configService: ConfigService) {
-    //     this.transporter = nodemailer.createTransport({
-    //         host: this.configService.get<string>('MAIL_HOST'),
-    //         port: this.configService.get<number>('MAIL_PORT'),
-    //         secure: false,
-    //         auth: {
-    //             user: this.configService.get<string>('MAIL_USER'),
-    //             pass: this.configService.get<string>('MAIL_PASSWORD'),
-    //         },
-    //     });
-
-    // }
-
-    // emailTransport() {
-    //     const transporter = nodemailer.createTransport({
-    //         host: this.configService.get<string>('MAIL_HOST'),
-    //         port: this.configService.get<number>('MAIL_PORT'),
-    //         secure: false,
-    //         auth: {
-    //             user: this.configService.get<string>('MAIL_USER'),
-    //             pass: this.configService.get<string>('MAIL_PASSWORD'),
-    //         },
-    //     });
-    //     return transporter;
-    // }
-
-    constructor(private readonly mailerService: MailerService) { }
-
-
+    constructor(private readonly configService: ConfigService) {
+        const token = this.configService.get<string>('MAILTRAP_TOKEN');
+        this.mailtrapClient = new MailtrapClient({ token });
+        this.sender = {
+            email: this.configService.get<string>('MAIL_FROM') || 'no-reply@sonichoice.test',
+            name: 'Sonichoice',
+        };
+    }
 
     async sendInviteEmail(name: string, email: string, inviteLink: string, branchName: string) {
         try {
-            // const sendMail = await this.mailerService.sendMail({
-            //     to: email,
-            //     subject: 'You are invited to join Sonichoice Inventory Management',
-            //     template: 'invite',
-            //     context: {
-            //         name,
-            //         email,
-            //         inviteLink,
-            //         branchName,
-            //         year: new Date().getFullYear(),
-            //     },
-            // });
-            const sendMail = await this.mailerService.sendMail({
-                to: email,
+            await this.mailtrapClient.send({
+                from: this.sender,
+                to: [{ email }],
                 subject: 'You are invited to join Sonichoice Inventory Management',
+                category: 'Invite',
                 html: `
                     <h2>You're Invited!</h2>
                     <p>Hello ${name},</p>
@@ -65,21 +34,19 @@ export class MailService {
                     <p style="color:#999;font-size:12px;">&copy; ${new Date().getFullYear()} Sonichoice. All rights reserved.</p>
                 `,
             });
-            if (!sendMail) {
-                throw new Error('Failed to send invite email');
-            }
             return true;
         } catch (error) {
             throw new Error(`Failed to send invite email: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-
     async sendPasswordResetEmail(name: string, email: string, resetLink: string) {
         try {
-            const sendMail = await this.mailerService.sendMail({
-                to: email,
+            await this.mailtrapClient.send({
+                from: this.sender,
+                to: [{ email }],
                 subject: 'Password Reset Request for Sonichoice Inventory Management',
+                category: 'Password Reset',
                 html: `
                     <h2>Password Reset Request</h2>
                     <p>Hello ${name},</p>
@@ -91,13 +58,9 @@ export class MailService {
                     <p style="color:#999;font-size:12px;">&copy; ${new Date().getFullYear()} Sonichoice. All rights reserved.</p>
                 `,
             });
-            if (!sendMail) {
-                throw new Error('Failed to send password reset email');
-            }
             return true;
         } catch (error) {
             throw new Error(`Failed to send password reset email: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-
 }
