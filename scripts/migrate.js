@@ -88,8 +88,9 @@ async function applyMigration(conn, migrationName) {
     );
 
     try {
-        // Execute the migration SQL
-        await conn.query(sql);
+        // Execute the migration SQL (convert CREATE TABLE to IF NOT EXISTS for safety)
+        const safeSql = sql.replace(/CREATE TABLE `/g, 'CREATE TABLE IF NOT EXISTS `');
+        await conn.query(safeSql);
 
         // Mark as finished
         await conn.query(
