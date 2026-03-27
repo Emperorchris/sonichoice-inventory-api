@@ -10,6 +10,9 @@ export class Branch {
     country?: string | null;
     phone?: string | null;
     email?: string | null;
+    users?: any[];
+    products?: any[];
+    invites?: any[];
     createdAt: Date;
     updatedAt: Date;
 
@@ -20,5 +23,17 @@ export class Branch {
 
     constructor(partial: Partial<Branch>) {
         Object.assign(this, partial);
+        if (partial.users) {
+            const { User } = require('../../user/entities/user.entity');
+            this.users = partial.users.map(u => new User(u));
+        }
+        if (partial.products) {
+            const { Product } = require('../../product/entities/product.entity');
+            this.products = partial.products.map(p => new Product(p));
+        }
+        if (partial.invites) {
+            const { Invite } = require('../../invites/entities/invite.entity');
+            this.invites = partial.invites.map(i => new Invite(i));
+        }
     }
 }

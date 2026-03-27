@@ -59,6 +59,7 @@ export class AuthService {
 					branchId,
 					...rest,
 				},
+				include: { branch: true },
 			});
 
 			return new User(newUser);
@@ -78,6 +79,7 @@ export class AuthService {
 
 			const user = await this.prismaService.user.findFirst({
 				where: { email },
+				include: { branch: true },
 			});
 
 			if (!user) {
@@ -128,6 +130,7 @@ export class AuthService {
 
 			const user = await this.prismaService.user.findUnique({
 				where: { id: userId },
+				include: { branch: true },
 			});
 
 			if (!user) {
@@ -145,6 +148,7 @@ export class AuthService {
 			const updatedUser = await this.prismaService.user.update({
 				where: { id: userId },
 				data: { password: hashedNewPassword },
+				include: { branch: true },
 			});
 
 			return new User(updatedUser);

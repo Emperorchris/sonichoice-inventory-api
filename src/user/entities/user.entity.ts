@@ -1,5 +1,6 @@
 import { Exclude } from 'class-transformer';
 import { UserRole } from 'generated/prisma/enums';
+import { Branch } from '../../branch/entities/branch.entity';
 
 export class User {
     id: string;
@@ -8,6 +9,7 @@ export class User {
     phone?: string | null;
     role: UserRole;
     branchId: string;
+    branch?: Branch;
     createdAt: Date;
     updatedAt: Date;
 
@@ -20,5 +22,8 @@ export class User {
 
     constructor(partial: Partial<User>) {
         Object.assign(this, partial);
+        if (partial.branch) {
+            this.branch = new Branch(partial.branch);
+        }
     }
 }

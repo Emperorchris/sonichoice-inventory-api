@@ -16,9 +16,9 @@ import { Product } from './entities/product.entity';
 export class ProductService {
 	private readonly logger = new Logger(ProductService.name);
 
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(private readonly prisma: PrismaService) { }
 
-	private buildWhereFilter(search?: string, merchantId?: string) {
+	private buildWhereFilter(search?: string, merchantId?: string, branchId?: string) {
 		const where: any = {};
 		if (search) {
 			const term = search.toLowerCase();
@@ -30,6 +30,9 @@ export class ProductService {
 		}
 		if (merchantId) {
 			where.merchantId = merchantId;
+		}
+		if (branchId) {
+			where.branchId = branchId;
 		}
 		return where;
 	}
@@ -164,11 +167,11 @@ export class ProductService {
 		}
 	}
 
-	async findAll(page: number = 1, search?: string, merchantId?: string) {
+	async findAll(page: number = 1, search?: string, merchantId?: string, branchId?: string) {
 		try {
 			const take = 50;
 			const skip = (page - 1) * take;
-			const where = this.buildWhereFilter(search, merchantId);
+			const where = this.buildWhereFilter(search, merchantId, branchId);
 
 			const [products, total] = await Promise.all([
 				this.prisma.product.findMany({

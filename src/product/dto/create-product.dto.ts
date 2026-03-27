@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, isString, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateProductDto {
     @IsNotEmpty({ message: 'Product name is required' })
@@ -8,6 +8,10 @@ export class CreateProductDto {
     @IsNotEmpty({ message: 'Merchant ID is required' })
     @IsUUID('4', { message: 'Please provide a valid merchant ID' })
     merchantId: string;
+
+    @IsNotEmpty({ message: "Branch Id is required" })
+    @IsUUID('4', { message: 'Please provide a valid branch ID' })
+    branchId: string;
 
     @IsOptional()
     @IsString({ message: 'Description must be a string' })

@@ -6,7 +6,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(private readonly productService: ProductService) { }
 
   @Post()
   create(@Body() createProductDto: CreateProductDto, @Req() req: any) {
@@ -18,8 +18,9 @@ export class ProductController {
     @Query('page') page?: string,
     @Query('search') search?: string,
     @Query('merchantId') merchantId?: string,
+    @Query('branchId') branchId?: string,
   ) {
-    return this.productService.findAll(Number(page) || 1, search, merchantId);
+    return this.productService.findAll(Number(page) || 1, search, merchantId, branchId);
   }
 
   @Get('export/pdf')

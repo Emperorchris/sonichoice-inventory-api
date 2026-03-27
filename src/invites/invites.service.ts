@@ -81,6 +81,7 @@ export class InvitesService {
 			const invite = await this.prisma.invites.update({
 				where: { id: tempInvite.id },
 				data: { inviteLink, isEmailSent: true },
+				include: { branch: true },
 			});
 
 			return new Invite(invite);
@@ -107,6 +108,7 @@ export class InvitesService {
 					email,
 					isDeleted: false,
 				},
+				include: { branch: true },
 			});
 			if (!checkInvite) {
 				throw new NotFoundException('Invite not found or has been deleted');
@@ -139,6 +141,7 @@ export class InvitesService {
 					branchId: checkInvite.branchId,
 					password: hashPassword,
 				},
+				include: { branch: true },
 			});
 
 			await this.prisma.invites.update({
@@ -212,6 +215,7 @@ export class InvitesService {
 		try {
 			const invite = await this.prisma.invites.findFirst({
 				where: { id, isDeleted: false },
+				include: { branch: true },
 			});
 			if (!invite) {
 				throw new NotFoundException(`Invite with ID ${id} not found`);
@@ -220,6 +224,7 @@ export class InvitesService {
 			await this.prisma.invites.update({
 				where: { id },
 				data: { isDeleted: true, deletedAt: new Date() },
+				include: { branch: true },
 			});
 
 			return { message: 'Invite deleted successfully' };
