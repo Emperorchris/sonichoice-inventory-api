@@ -3,6 +3,7 @@ import {
 	Logger,
 	NotFoundException,
 	InternalServerErrorException,
+	BadRequestException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import PDFDocument from 'pdfkit';
@@ -181,9 +182,14 @@ export class ProductService {
 				throw new NotFoundException(`Merchant with ID ${productData.merchantId} not found`);
 			}
 
-			// Validate all branch IDs exist
+			// Validate branches
 			if (branches?.length) {
 				const branchIds = branches.map(b => b.branchId);
+				const uniqueIds = new Set(branchIds);
+				if (uniqueIds.size !== branchIds.length) {
+					throw new BadRequestException('Duplicate branch entries are not allowed');
+				}
+
 				const existingBranches = await this.prisma.branch.findMany({
 					where: { id: { in: branchIds }, isDeleted: false },
 					select: { id: true },
@@ -219,7 +225,7 @@ export class ProductService {
 
 			return new Product(product);
 		} catch (error) {
-			if (error instanceof NotFoundException) {
+			if (error instanceof NotFoundException || error instanceof BadRequestException) {
 				throw error;
 			}
 			this.logger.error(`Failed to create product: ${error.message}`, error.stack);
@@ -268,7 +274,7 @@ export class ProductService {
 			}
 			return new Product(product);
 		} catch (error) {
-			if (error instanceof NotFoundException) {
+			if (error instanceof NotFoundException || error instanceof BadRequestException) {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve product ${id}: ${error.message}`, error.stack);
@@ -291,9 +297,14 @@ export class ProductService {
 				}
 			}
 
-			// Validate all branch IDs exist
+			// Validate branches
 			if (branches?.length) {
 				const branchIds = branches.map(b => b.branchId);
+				const uniqueIds = new Set(branchIds);
+				if (uniqueIds.size !== branchIds.length) {
+					throw new BadRequestException('Duplicate branch entries are not allowed');
+				}
+
 				const existingBranches = await this.prisma.branch.findMany({
 					where: { id: { in: branchIds }, isDeleted: false },
 					select: { id: true },
@@ -325,7 +336,7 @@ export class ProductService {
 
 			return new Product(product);
 		} catch (error) {
-			if (error instanceof NotFoundException) {
+			if (error instanceof NotFoundException || error instanceof BadRequestException) {
 				throw error;
 			}
 			this.logger.error(`Failed to update product ${id}: ${error.message}`, error.stack);
@@ -342,7 +353,7 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			}));
 		} catch (error) {
-			if (error instanceof NotFoundException) {
+			if (error instanceof NotFoundException || error instanceof BadRequestException) {
 				throw error;
 			}
 			this.logger.error(`Failed to delete product ${id}: ${error.message}`, error.stack);
