@@ -148,11 +148,8 @@ export class MerchantService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new Merchant(await this.prisma.merchant.update({
-				where: { id },
-				data: { isDeleted: true, deletedAt: new Date() },
-				include: { products: { include: { stocks: { include: { branch: true } } } } },
-			}));
+			await this.prisma.merchant.delete({ where: { id } });
+			return { message: 'Merchant deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;

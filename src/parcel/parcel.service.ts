@@ -27,7 +27,7 @@ export class ParcelService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	private buildWhereFilter(search?: string, merchantId?: string, status?: string, fromBranchId?: string, toBranchId?: string) {
-		const where: any = { isDeleted: false };
+		const where: any = {};
 		if (search) {
 			const term = search.toLowerCase();
 			where.OR = [
@@ -48,7 +48,7 @@ export class ParcelService {
 
 			// Validate merchant
 			const merchant = await this.prisma.merchant.findFirst({
-				where: { id: parcelData.merchantId, isDeleted: false },
+				where: { id: parcelData.merchantId },
 			});
 			if (!merchant) {
 				throw new NotFoundException(`Merchant with ID ${parcelData.merchantId} not found`);
@@ -60,8 +60,8 @@ export class ParcelService {
 			}
 
 			const [fromBranch, toBranch] = await Promise.all([
-				this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId, isDeleted: false } }),
-				this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId, isDeleted: false } }),
+				this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId } }),
+				this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId } }),
 			]);
 			if (!fromBranch) throw new NotFoundException(`From branch with ID ${parcelData.fromBranchId} not found`);
 			if (!toBranch) throw new NotFoundException(`To branch with ID ${parcelData.toBranchId} not found`);
@@ -75,7 +75,7 @@ export class ParcelService {
 
 			// Validate all products exist
 			const products = await this.prisma.product.findMany({
-				where: { id: { in: productIds }, isDeleted: false },
+				where: { id: { in: productIds } },
 				select: { id: true },
 			});
 			const foundIds = new Set(products.map(p => p.id));
@@ -206,7 +206,7 @@ export class ParcelService {
 	async findOne(id: string) {
 		try {
 			const parcel = await this.prisma.parcel.findFirst({
-				where: { id, isDeleted: false },
+				where: { id },
 				include: PARCEL_INCLUDE,
 			});
 			if (!parcel) {
@@ -225,7 +225,7 @@ export class ParcelService {
 	async findByTrackingNumber(trackingNumber: string) {
 		try {
 			const parcel = await this.prisma.parcel.findFirst({
-				where: { trackingNumber, isDeleted: false },
+				where: { trackingNumber },
 				include: PARCEL_INCLUDE,
 			});
 			if (!parcel) {
@@ -257,17 +257,17 @@ export class ParcelService {
 			}
 
 			if (parcelData.merchantId) {
-				const merchant = await this.prisma.merchant.findFirst({ where: { id: parcelData.merchantId, isDeleted: false } });
+				const merchant = await this.prisma.merchant.findFirst({ where: { id: parcelData.merchantId } });
 				if (!merchant) throw new NotFoundException(`Merchant with ID ${parcelData.merchantId} not found`);
 			}
 
 			if (parcelData.fromBranchId) {
-				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId, isDeleted: false } });
+				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId } });
 				if (!branch) throw new NotFoundException(`From branch with ID ${parcelData.fromBranchId} not found`);
 			}
 
 			if (parcelData.toBranchId) {
-				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId, isDeleted: false } });
+				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId } });
 				if (!branch) throw new NotFoundException(`To branch with ID ${parcelData.toBranchId} not found`);
 			}
 
@@ -280,7 +280,7 @@ export class ParcelService {
 				}
 
 				const products = await this.prisma.product.findMany({
-					where: { id: { in: productIds }, isDeleted: false },
+					where: { id: { in: productIds } },
 					select: { id: true },
 				});
 				const foundIds = new Set(products.map(p => p.id));
@@ -473,11 +473,8 @@ export class ParcelService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new Parcel(await this.prisma.parcel.update({
-				where: { id },
-				data: { isDeleted: true, deletedAt: new Date() },
-				include: PARCEL_INCLUDE,
-			}));
+			await this.prisma.parcel.delete({ where: { id } });
+			return { message: 'Parcel deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;

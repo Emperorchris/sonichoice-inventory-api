@@ -20,7 +20,7 @@ export class UserService {
 		try {
 			const take = 50;
 			const skip = (page - 1) * take;
-			const where: any = { isDeleted: false };
+			const where: any = {};
 
 			if (search) {
 				const term = search.toLowerCase();
@@ -55,7 +55,7 @@ export class UserService {
 	async findOne(id: string) {
 		try {
 			const user = await this.prisma.user.findFirst({
-				where: { id, isDeleted: false },
+				where: { id },
 				include: USER_INCLUDE,
 			});
 			if (!user) {
@@ -79,7 +79,7 @@ export class UserService {
 
 			if (updateUserDto.branchId) {
 				const branch = await this.prisma.branch.findFirst({
-					where: { id: updateUserDto.branchId, isDeleted: false },
+					where: { id: updateUserDto.branchId },
 				});
 				if (!branch) {
 					throw new NotFoundException(`Branch with ID ${updateUserDto.branchId} not found`);
@@ -101,11 +101,8 @@ export class UserService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new User(await this.prisma.user.update({
-				where: { id },
-				data: { isDeleted: true, deletedAt: new Date() },
-				include: USER_INCLUDE,
-			}));
+			await this.prisma.user.delete({ where: { id } });
+			return { message: 'User deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;
 			this.logger.error(`Failed to delete user ${id}: ${error.message}`, error.stack);

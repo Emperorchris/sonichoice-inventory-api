@@ -25,7 +25,7 @@ export class ProductService {
 	constructor(private readonly prisma: PrismaService) { }
 
 	private buildWhereFilter(search?: string, merchantId?: string, branchId?: string) {
-		const where: any = { isDeleted: false };
+		const where: any = {};
 		if (search) {
 			const term = search.toLowerCase();
 			where.OR = [
@@ -191,7 +191,7 @@ export class ProductService {
 				}
 
 				const existingBranches = await this.prisma.branch.findMany({
-					where: { id: { in: branchIds }, isDeleted: false },
+					where: { id: { in: branchIds } },
 					select: { id: true },
 				});
 				const foundIds = new Set(existingBranches.map(b => b.id));
@@ -266,7 +266,7 @@ export class ProductService {
 	async findOne(id: string) {
 		try {
 			const product = await this.prisma.product.findFirst({
-				where: { id, isDeleted: false },
+				where: { id },
 				include: PRODUCT_INCLUDE,
 			});
 			if (!product) {
@@ -306,7 +306,7 @@ export class ProductService {
 				}
 
 				const existingBranches = await this.prisma.branch.findMany({
-					where: { id: { in: branchIds }, isDeleted: false },
+					where: { id: { in: branchIds } },
 					select: { id: true },
 				});
 				const foundIds = new Set(existingBranches.map(b => b.id));
@@ -347,11 +347,8 @@ export class ProductService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new Product(await this.prisma.product.update({
-				where: { id },
-				data: { isDeleted: true, deletedAt: new Date() },
-				include: PRODUCT_INCLUDE,
-			}));
+			await this.prisma.product.delete({ where: { id } });
+			return { message: 'Product deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof BadRequestException) {
 				throw error;

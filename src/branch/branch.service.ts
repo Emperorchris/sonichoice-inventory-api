@@ -32,7 +32,7 @@ export class BranchService {
 
 			return new Branch(await this.prisma.branch.create({
 				data: createBranchDto,
-				include: { users: { where: { isDeleted: false } }, productStocks: { where: { isDeleted: false }, include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: { where: { isDeleted: false } }, parcelsFrom: { where: { isDeleted: false, status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { isDeleted: false, status: ParcelStatus.RECEIVED } } } } },
+				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException) {
@@ -56,7 +56,7 @@ export class BranchService {
 			const skip = (page - 1) * take;
 
 			const [branches, total] = await Promise.all([
-				this.prisma.branch.findMany({ skip, take, include: { users: { where: { isDeleted: false } }, productStocks: { where: { isDeleted: false }, include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: { where: { isDeleted: false } }, parcelsFrom: { where: { isDeleted: false, status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { isDeleted: false, status: ParcelStatus.RECEIVED } } } } } }),
+				this.prisma.branch.findMany({ skip, take, include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } } }),
 				this.prisma.branch.count(),
 			]);
 
@@ -76,7 +76,7 @@ export class BranchService {
 
 	async findOne(id: string) {
 		try {
-			const branch = await this.prisma.branch.findFirst({ where: { id }, include: { users: { where: { isDeleted: false } }, productStocks: { where: { isDeleted: false }, include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: { where: { isDeleted: false } }, parcelsFrom: { where: { isDeleted: false, status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { isDeleted: false, status: ParcelStatus.RECEIVED } } } } } });
+			const branch = await this.prisma.branch.findFirst({ where: { id }, include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } } });
 			if (!branch) {
 				throw new NotFoundException(`Branch with ID ${id} not found`);
 			}
@@ -106,7 +106,7 @@ export class BranchService {
 			return new Branch(await this.prisma.branch.update({
 				where: { id },
 				data: updateBranchDto,
-				include: { users: { where: { isDeleted: false } }, productStocks: { where: { isDeleted: false }, include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: { where: { isDeleted: false } }, parcelsFrom: { where: { isDeleted: false, status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { isDeleted: false, status: ParcelStatus.RECEIVED } } } } },
+				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
@@ -127,7 +127,8 @@ export class BranchService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new Branch(await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() }, include: { users: { where: { isDeleted: false } }, productStocks: { where: { isDeleted: false }, include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: { where: { isDeleted: false } }, parcelsFrom: { where: { isDeleted: false, status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { isDeleted: false, status: ParcelStatus.RECEIVED } } } } } }));
+			await this.prisma.branch.delete({ where: { id } });
+			return { message: 'Branch deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;

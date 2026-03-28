@@ -47,7 +47,7 @@ export class InvitesService {
 			});
 
 			if (existingInvite) {
-				if (!existingInvite.isDeleted && !existingInvite.isInviteAccepted) {
+				if (!existingInvite.isInviteAccepted) {
 					throw new ConflictException('An active invite with the provided email already exists');
 				}
 				// Remove old deleted/accepted invite so a new one can be created
@@ -106,7 +106,6 @@ export class InvitesService {
 				where: {
 					id: inviteId,
 					email,
-					isDeleted: false,
 				},
 				include: { branch: true },
 			});
@@ -176,7 +175,7 @@ export class InvitesService {
 			const take = 50;
 			const skip = (page - 1) * take;
 
-			const where: any = { isDeleted: false };
+			const where: any = {};
 
 			if (search) {
 				const term = search.toLowerCase();
@@ -214,19 +213,13 @@ export class InvitesService {
 	async remove(id: string) {
 		try {
 			const invite = await this.prisma.invites.findFirst({
-				where: { id, isDeleted: false },
-				include: { branch: true },
+				where: { id },
 			});
 			if (!invite) {
 				throw new NotFoundException(`Invite with ID ${id} not found`);
 			}
 
-			await this.prisma.invites.update({
-				where: { id },
-				data: { isDeleted: true, deletedAt: new Date() },
-				include: { branch: true },
-			});
-
+			await this.prisma.invites.delete({ where: { id } });
 			return { message: 'Invite deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {
