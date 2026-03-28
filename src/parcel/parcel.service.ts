@@ -205,11 +205,11 @@ export class ParcelService {
 				const stock = stockMap.get(item.productId);
 				const productName = productNameMap.get(item.productId) ?? 'Product';
 				if (!stock) {
-					throw new BadRequestException(`"${productName}" has no stock in the source branch`);
+					throw new BadRequestException(`${productName} has no stock in the source branch`);
 				}
 				if (stock.quantity < item.quantity) {
 					throw new BadRequestException(
-						`Insufficient stock for "${productName}". Available: ${stock.quantity}, Requested: ${item.quantity}`,
+						`Insufficient stock for ${productName}. Available: ${stock.quantity}, Requested: ${item.quantity}`,
 					);
 				}
 			}
@@ -419,7 +419,7 @@ export class ParcelService {
 					const stock = stockMap.get(item.productId);
 					const productName = productNameMap.get(item.productId) ?? 'Product';
 					if (!stock) {
-						throw new BadRequestException(`"${productName}" has no stock in the source branch`);
+						throw new BadRequestException(`${productName} has no stock in the source branch`);
 					}
 					if (stock.quantity < item.quantity) {
 						throw new BadRequestException(
