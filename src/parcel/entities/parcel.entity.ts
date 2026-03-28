@@ -21,8 +21,6 @@ export class ParcelItem {
 export class Parcel {
     id: string;
     trackingNumber: string;
-    merchantId: string;
-    merchant?: Merchant;
     size?: string | null;
     fromBranchId: string;
     fromBranch?: Branch;
@@ -31,6 +29,7 @@ export class Parcel {
     currentBranchId: string;
     currentBranch?: Branch;
     items?: ParcelItem[];
+    merchants?: Merchant[];
     status: string;
     dateShipped?: Date | null;
     dateDelivered?: Date | null;
@@ -45,9 +44,6 @@ export class Parcel {
 
     constructor(partial: Partial<Parcel>) {
         Object.assign(this, partial);
-        if (partial.merchant) {
-            this.merchant = new Merchant(partial.merchant);
-        }
         if (partial.fromBranch) {
             this.fromBranch = new Branch(partial.fromBranch);
         }
@@ -59,6 +55,14 @@ export class Parcel {
         }
         if (partial.items) {
             this.items = partial.items.map(i => new ParcelItem(i));
+            const merchantMap = new Map<string, Merchant>();
+            for (const item of this.items) {
+                const m = (item.product as any)?.merchant;
+                if (m && !merchantMap.has(m.id)) {
+                    merchantMap.set(m.id, new Merchant(m));
+                }
+            }
+            this.merchants = Array.from(merchantMap.values());
         }
     }
 }

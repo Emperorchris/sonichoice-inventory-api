@@ -1,8 +1,6 @@
 model Parcel {
     id              String       @id @default(uuid())
     trackingNumber  String       @unique
-    merchantId      String
-    merchant        Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
     size            ParcelSize?
     fromBranchId    String
     fromBranch      Branch       @relation("FromBranch", fields: [fromBranchId], references: [id], onDelete: Cascade)

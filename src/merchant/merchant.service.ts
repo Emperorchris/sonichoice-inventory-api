@@ -32,7 +32,7 @@ export class MerchantService {
 		if (status) where.status = status.toUpperCase();
 		return this.prisma.merchant.findMany({
 			where,
-			include: { _count: { select: { products: true, parcels: true } } },
+			include: { _count: { select: { products: true } } },
 		});
 	}
 
@@ -51,8 +51,8 @@ export class MerchantService {
 			doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()} | Total: ${merchants.length}`, { align: 'center' });
 			doc.moveDown();
 
-			const headers = ['Name', 'Email', 'Phone', 'Status', 'Products', 'Parcels', 'Created'];
-			const colWidths = [130, 150, 120, 80, 60, 60, 100];
+			const headers = ['Name', 'Email', 'Phone', 'Status', 'Products', 'Created'];
+			const colWidths = [130, 150, 120, 80, 70, 110];
 			const startX = 30;
 			let y = doc.y;
 
@@ -70,7 +70,6 @@ export class MerchantService {
 				const row = [
 					m.name, m.email || '-', m.phone || '-', m.status,
 					String((m as any)._count?.products || 0),
-					String((m as any)._count?.parcels || 0),
 					new Date(m.createdAt).toLocaleDateString(),
 				];
 				row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
@@ -92,7 +91,6 @@ export class MerchantService {
 			{ header: 'Phone', key: 'phone', width: 18 },
 			{ header: 'Status', key: 'status', width: 12 },
 			{ header: 'Products', key: 'products', width: 10 },
-			{ header: 'Parcels', key: 'parcels', width: 10 },
 			{ header: 'Created', key: 'createdAt', width: 18 },
 		];
 
@@ -104,7 +102,6 @@ export class MerchantService {
 				name: m.name, email: m.email || '-', phone: m.phone || '-',
 				status: m.status,
 				products: (m as any)._count?.products || 0,
-				parcels: (m as any)._count?.parcels || 0,
 				createdAt: new Date(m.createdAt).toLocaleDateString(),
 			});
 		}

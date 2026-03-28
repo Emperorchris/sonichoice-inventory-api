@@ -15,11 +15,10 @@ import { Parcel } from './entities/parcel.entity';
 import { ParcelStatus } from 'generated/prisma/enums';
 
 const PARCEL_INCLUDE = {
-	merchant: true,
 	fromBranch: true,
 	toBranch: true,
 	currentBranch: true,
-	items: { include: { product: true } },
+	items: { include: { product: { include: { merchant: true } } } },
 } as const;
 
 @Injectable()
@@ -37,7 +36,7 @@ export class ParcelService {
 				{ additionalInfo: { contains: term } },
 			];
 		}
-		if (merchantId) where.merchantId = merchantId;
+		if (merchantId) where.items = { some: { product: { merchantId } } };
 		if (status) where.status = status.toUpperCase();
 		if (fromBranchId) where.fromBranchId = fromBranchId;
 		if (toBranchId) where.toBranchId = toBranchId;
@@ -86,7 +85,7 @@ export class ParcelService {
 				const totalItems = (p as any).items?.reduce((sum: number, i: any) => sum + i.quantity, 0) || 0;
 				const row = [
 					p.trackingNumber,
-					(p as any).merchant?.name || '-',
+					[...new Map((p as any).items?.map((i: any) => [i.product?.merchant?.id, i.product?.merchant?.name]).filter(([id]: any) => id)).values()].join(', ') || '-',
 					(p as any).fromBranch?.name || '-',
 					(p as any).toBranch?.name || '-',
 					p.status,
@@ -132,7 +131,7 @@ export class ParcelService {
 
 			sheet.addRow({
 				trackingNumber: p.trackingNumber,
-				merchant: (p as any).merchant?.name || '-',
+				merchant: [...new Map(items.map((i: any) => [i.product?.merchant?.id, i.product?.merchant?.name]).filter(([id]: any) => id)).values()].join(', ') || '-',
 				fromBranch: (p as any).fromBranch?.name || '-',
 				toBranch: (p as any).toBranch?.name || '-',
 				status: p.status,
@@ -151,15 +150,6 @@ export class ParcelService {
 	async create(createParcelDto: CreateParcelDto) {
 		try {
 			const { items, ...parcelData } = createParcelDto;
-
-			// Validate merchant
-			const merchant = await this.prisma.merchant.findFirst({
-				where: { id: parcelData.merchantId },
-				select: { id: true, name: true },
-			});
-			if (!merchant) {
-				throw new NotFoundException(`Merchant not found`);
-			}
 
 			// Validate from/to branches exist and are different
 			if (parcelData.fromBranchId === parcelData.toBranchId) {
@@ -254,7 +244,6 @@ export class ParcelService {
 				return tx.parcel.create({
 					data: {
 						trackingNumber,
-						merchant: { connect: { id: parcelData.merchantId } },
 						fromBranch: { connect: { id: parcelData.fromBranchId } },
 						toBranch: { connect: { id: parcelData.toBranchId } },
 						currentBranch: { connect: { id: parcelData.fromBranchId } },
@@ -365,11 +354,6 @@ export class ParcelService {
 				throw new BadRequestException('From branch and to branch cannot be the same');
 			}
 
-			if (parcelData.merchantId) {
-				const merchant = await this.prisma.merchant.findFirst({ where: { id: parcelData.merchantId } });
-				if (!merchant) throw new NotFoundException(`Merchant not found`);
-			}
-
 			if (parcelData.fromBranchId) {
 				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId } });
 				if (!branch) throw new NotFoundException(`Source branch not found`);
@@ -430,7 +414,6 @@ export class ParcelService {
 			}
 
 			const updateData: any = {};
-			if (parcelData.merchantId) updateData.merchant = { connect: { id: parcelData.merchantId } };
 			if (parcelData.fromBranchId) updateData.fromBranch = { connect: { id: parcelData.fromBranchId } };
 			if (parcelData.toBranchId) updateData.toBranch = { connect: { id: parcelData.toBranchId } };
 			if (parcelData.size !== undefined) updateData.size = parcelData.size;

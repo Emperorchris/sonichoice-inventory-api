@@ -23,10 +23,6 @@ export class ParcelItemDto {
 }
 
 export class CreateParcelDto {
-    @IsNotEmpty({ message: 'Merchant ID is required' })
-    @IsUUID('4', { message: 'Please provide a valid merchant ID' })
-    merchantId: string;
-
     @IsOptional()
     @IsEnum(ParcelSize, { message: 'Size must be SMALL, MEDIUM, LARGE, or EXTRA_LARGE' })
     size?: ParcelSize;

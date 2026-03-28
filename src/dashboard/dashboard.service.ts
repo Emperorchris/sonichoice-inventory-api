@@ -43,10 +43,9 @@ export class DashboardService {
 					take: 10,
 					orderBy: { createdAt: 'desc' },
 					include: {
-						merchant: { select: { id: true, name: true, color: true } },
 						fromBranch: { select: { id: true, name: true, city: true } },
 						toBranch: { select: { id: true, name: true, city: true } },
-						items: { include: { product: { select: { id: true, name: true } } } },
+						items: { include: { product: { include: { merchant: { select: { id: true, name: true, color: true } } } } } },
 					},
 				}),
 				this.prisma.branch.findMany({
@@ -81,9 +80,9 @@ export class DashboardService {
 						id: true,
 						name: true,
 						color: true,
-						_count: { select: { parcels: true, products: true } },
+						_count: { select: { products: true } },
 					},
-					orderBy: { parcels: { _count: 'desc' } },
+					orderBy: { products: { _count: 'desc' } },
 				}),
 			]);
 
@@ -126,26 +125,32 @@ export class DashboardService {
 						activeMerchants,
 						totalBranches,
 					},
-					recentParcels: recentParcels.map(p => ({
-						id: p.id,
-						trackingNumber: p.trackingNumber,
-						status: p.status,
-						size: p.size,
-						merchant: p.merchant,
-						fromBranch: p.fromBranch,
-						toBranch: p.toBranch,
-						itemCount: p.items.reduce((sum, i) => sum + i.quantity, 0),
-						items: p.items.map(i => ({ product: i.product, quantity: i.quantity })),
-						dateShipped: p.dateShipped,
-						dateDelivered: p.dateDelivered,
-						createdAt: p.createdAt,
-					})),
+					recentParcels: recentParcels.map(p => {
+						const merchantMap = new Map<string, any>();
+						for (const item of p.items) {
+							const m = (item.product as any)?.merchant;
+							if (m) merchantMap.set(m.id, m);
+						}
+						return {
+							id: p.id,
+							trackingNumber: p.trackingNumber,
+							status: p.status,
+							size: p.size,
+							merchants: Array.from(merchantMap.values()),
+							fromBranch: p.fromBranch,
+							toBranch: p.toBranch,
+							itemCount: p.items.reduce((sum, i) => sum + i.quantity, 0),
+							items: p.items.map(i => ({ product: i.product, quantity: i.quantity })),
+							dateShipped: p.dateShipped,
+							dateDelivered: p.dateDelivered,
+							createdAt: p.createdAt,
+						};
+					}),
 					branchHoldings: branchesWithHolding,
 					topMerchants: topMerchants.map(m => ({
 						id: m.id,
 						name: m.name,
 						color: m.color,
-						totalParcels: m._count.parcels,
 						totalProducts: m._count.products,
 					})),
 					recentActivity: recentActivity.map(log => ({
