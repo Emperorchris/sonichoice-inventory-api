@@ -130,10 +130,15 @@ async function main() {
         trackingId,
         name: productNames[i],
         description: descriptions[i],
-        quantity: Math.floor(Math.random() * 200) + 10,
         merchantId: merchant.id,
-        branchId: branch.id,
         additionalInfo: i % 3 === 0 ? 'Handle with care. Store in cool dry place.' : null,
+        stocks: {
+          create: {
+            branchId: branch.id,
+            quantity: Math.floor(Math.random() * 200) + 10,
+            lowStockAlert: 10,
+          },
+        },
       },
     });
   }

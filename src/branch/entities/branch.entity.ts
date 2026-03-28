@@ -11,7 +11,7 @@ export class Branch {
     phone?: string | null;
     email?: string | null;
     users?: any[];
-    products?: any[];
+    productStocks?: any[];
     invites?: any[];
     createdAt: Date;
     updatedAt: Date;
@@ -27,9 +27,8 @@ export class Branch {
             const { User } = require('../../user/entities/user.entity');
             this.users = partial.users.map(u => new User(u));
         }
-        if (partial.products) {
-            const { Product } = require('../../product/entities/product.entity');
-            this.products = partial.products.map(p => new Product(p));
+        if (partial.productStocks) {
+            this.productStocks = partial.productStocks;
         }
         if (partial.invites) {
             const { Invite } = require('../../invites/entities/invite.entity');
