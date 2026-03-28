@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ParcelService } from './parcel.service';
 import { CreateParcelDto } from './dto/create-parcel.dto';
 import { UpdateParcelDto, UpdateParcelStatusDto } from './dto/update-parcel.dto';
@@ -22,6 +23,40 @@ export class ParcelController {
         @Query('toBranchId') toBranchId?: string,
     ) {
         return this.parcelService.findAll(Number(page) || 1, search, merchantId, status, fromBranchId, toBranchId);
+    }
+
+    @Get('export/pdf')
+    async exportPdf(
+        @Res() res: Response,
+        @Query('search') search?: string,
+        @Query('merchantId') merchantId?: string,
+        @Query('status') status?: string,
+        @Query('fromBranchId') fromBranchId?: string,
+        @Query('toBranchId') toBranchId?: string,
+    ) {
+        const buffer = await this.parcelService.exportPdf(search, merchantId, status, fromBranchId, toBranchId);
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'attachment; filename=parcels.pdf',
+        });
+        res.end(buffer);
+    }
+
+    @Get('export/excel')
+    async exportExcel(
+        @Res() res: Response,
+        @Query('search') search?: string,
+        @Query('merchantId') merchantId?: string,
+        @Query('status') status?: string,
+        @Query('fromBranchId') fromBranchId?: string,
+        @Query('toBranchId') toBranchId?: string,
+    ) {
+        const buffer = await this.parcelService.exportExcel(search, merchantId, status, fromBranchId, toBranchId);
+        res.set({
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename=parcels.xlsx',
+        });
+        res.end(buffer);
     }
 
     @Get('track/:trackingNumber')

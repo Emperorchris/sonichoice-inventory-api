@@ -5,6 +5,8 @@ import {
 	InternalServerErrorException,
 	ConflictException,
 } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
@@ -16,6 +18,99 @@ export class MerchantService {
 	private readonly logger = new Logger(MerchantService.name);
 
 	constructor(private readonly prisma: PrismaService) {}
+
+	private async getFilteredMerchants(search?: string, status?: string) {
+		const where: any = {};
+		if (search) {
+			const term = search.toLowerCase();
+			where.OR = [
+				{ name: { contains: term } },
+				{ email: { contains: term } },
+				{ phone: { contains: term } },
+			];
+		}
+		if (status) where.status = status.toUpperCase();
+		return this.prisma.merchant.findMany({
+			where,
+			include: { _count: { select: { products: true, parcels: true } } },
+		});
+	}
+
+	async exportPdf(search?: string, status?: string): Promise<Buffer> {
+		const merchants = await this.getFilteredMerchants(search, status);
+		const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+		const chunks: Buffer[] = [];
+
+		return new Promise((resolve, reject) => {
+			doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+			doc.on('end', () => resolve(Buffer.concat(chunks)));
+			doc.on('error', reject);
+
+			doc.fontSize(18).text('Merchants Report', { align: 'center' });
+			doc.moveDown(0.5);
+			doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()} | Total: ${merchants.length}`, { align: 'center' });
+			doc.moveDown();
+
+			const headers = ['Name', 'Email', 'Phone', 'Status', 'Products', 'Parcels', 'Created'];
+			const colWidths = [130, 150, 120, 80, 60, 60, 100];
+			const startX = 30;
+			let y = doc.y;
+
+			doc.fontSize(9).font('Helvetica-Bold');
+			let x = startX;
+			headers.forEach((h, i) => { doc.text(h, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+			y += 20;
+			doc.moveTo(startX, y).lineTo(startX + colWidths.reduce((a, b) => a + b, 0), y).stroke();
+			y += 5;
+
+			doc.font('Helvetica').fontSize(8);
+			for (const m of merchants) {
+				if (y > 550) { doc.addPage(); y = 30; }
+				x = startX;
+				const row = [
+					m.name, m.email || '-', m.phone || '-', m.status,
+					String((m as any)._count?.products || 0),
+					String((m as any)._count?.parcels || 0),
+					new Date(m.createdAt).toLocaleDateString(),
+				];
+				row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+				y += 18;
+			}
+
+			doc.end();
+		});
+	}
+
+	async exportExcel(search?: string, status?: string): Promise<Buffer> {
+		const merchants = await this.getFilteredMerchants(search, status);
+		const workbook = new ExcelJS.Workbook();
+		const sheet = workbook.addWorksheet('Merchants');
+
+		sheet.columns = [
+			{ header: 'Name', key: 'name', width: 25 },
+			{ header: 'Email', key: 'email', width: 25 },
+			{ header: 'Phone', key: 'phone', width: 18 },
+			{ header: 'Status', key: 'status', width: 12 },
+			{ header: 'Products', key: 'products', width: 10 },
+			{ header: 'Parcels', key: 'parcels', width: 10 },
+			{ header: 'Created', key: 'createdAt', width: 18 },
+		];
+
+		sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+		sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+		for (const m of merchants) {
+			sheet.addRow({
+				name: m.name, email: m.email || '-', phone: m.phone || '-',
+				status: m.status,
+				products: (m as any)._count?.products || 0,
+				parcels: (m as any)._count?.parcels || 0,
+				createdAt: new Date(m.createdAt).toLocaleDateString(),
+			});
+		}
+
+		return Buffer.from(await workbook.xlsx.writeBuffer());
+	}
 
 	async create(createMerchantDto: CreateMerchantDto) {
 		try {

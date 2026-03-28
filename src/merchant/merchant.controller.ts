@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { MerchantService } from './merchant.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
@@ -19,6 +20,34 @@ export class MerchantController {
     @Query('status') status?: string,
   ) {
     return this.merchantService.findAll(Number(page) || 1, search, status);
+  }
+
+  @Get('export/pdf')
+  async exportPdf(
+    @Res() res: Response,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    const buffer = await this.merchantService.exportPdf(search, status);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename=merchants.pdf',
+    });
+    res.end(buffer);
+  }
+
+  @Get('export/excel')
+  async exportExcel(
+    @Res() res: Response,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    const buffer = await this.merchantService.exportExcel(search, status);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename=merchants.xlsx',
+    });
+    res.end(buffer);
   }
 
   @Get(':id')

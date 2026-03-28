@@ -6,6 +6,8 @@ import {
 	BadRequestException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import PDFDocument from 'pdfkit';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateParcelDto } from './dto/create-parcel.dto';
 import { UpdateParcelDto, UpdateParcelStatusDto } from './dto/update-parcel.dto';
@@ -40,6 +42,110 @@ export class ParcelService {
 		if (fromBranchId) where.fromBranchId = fromBranchId;
 		if (toBranchId) where.toBranchId = toBranchId;
 		return where;
+	}
+
+	private async getFilteredParcels(search?: string, merchantId?: string, status?: string, fromBranchId?: string, toBranchId?: string) {
+		const where = this.buildWhereFilter(search, merchantId, status, fromBranchId, toBranchId);
+		return this.prisma.parcel.findMany({
+			where,
+			include: PARCEL_INCLUDE,
+		});
+	}
+
+	async exportPdf(search?: string, merchantId?: string, status?: string, fromBranchId?: string, toBranchId?: string): Promise<Buffer> {
+		const parcels = await this.getFilteredParcels(search, merchantId, status, fromBranchId, toBranchId);
+		const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+		const chunks: Buffer[] = [];
+
+		return new Promise((resolve, reject) => {
+			doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+			doc.on('end', () => resolve(Buffer.concat(chunks)));
+			doc.on('error', reject);
+
+			doc.fontSize(18).text('Parcels Report', { align: 'center' });
+			doc.moveDown(0.5);
+			doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()} | Total: ${parcels.length}`, { align: 'center' });
+			doc.moveDown();
+
+			const headers = ['Tracking #', 'Merchant', 'From', 'To', 'Status', 'Size', 'Items', 'Shipped', 'Delivered'];
+			const colWidths = [100, 100, 90, 90, 80, 70, 50, 90, 90];
+			const startX = 30;
+			let y = doc.y;
+
+			doc.fontSize(9).font('Helvetica-Bold');
+			let x = startX;
+			headers.forEach((h, i) => { doc.text(h, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+			y += 20;
+			doc.moveTo(startX, y).lineTo(startX + colWidths.reduce((a, b) => a + b, 0), y).stroke();
+			y += 5;
+
+			doc.font('Helvetica').fontSize(8);
+			for (const p of parcels) {
+				if (y > 550) { doc.addPage(); y = 30; }
+				x = startX;
+				const totalItems = (p as any).items?.reduce((sum: number, i: any) => sum + i.quantity, 0) || 0;
+				const row = [
+					p.trackingNumber,
+					(p as any).merchant?.name || '-',
+					(p as any).fromBranch?.name || '-',
+					(p as any).toBranch?.name || '-',
+					p.status,
+					p.size || '-',
+					String(totalItems),
+					p.dateShipped ? new Date(p.dateShipped).toLocaleDateString() : '-',
+					p.dateDelivered ? new Date(p.dateDelivered).toLocaleDateString() : '-',
+				];
+				row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+				y += 18;
+			}
+
+			doc.end();
+		});
+	}
+
+	async exportExcel(search?: string, merchantId?: string, status?: string, fromBranchId?: string, toBranchId?: string): Promise<Buffer> {
+		const parcels = await this.getFilteredParcels(search, merchantId, status, fromBranchId, toBranchId);
+		const workbook = new ExcelJS.Workbook();
+		const sheet = workbook.addWorksheet('Parcels');
+
+		sheet.columns = [
+			{ header: 'Tracking #', key: 'trackingNumber', width: 18 },
+			{ header: 'Merchant', key: 'merchant', width: 20 },
+			{ header: 'From Branch', key: 'fromBranch', width: 20 },
+			{ header: 'To Branch', key: 'toBranch', width: 20 },
+			{ header: 'Status', key: 'status', width: 12 },
+			{ header: 'Size', key: 'size', width: 12 },
+			{ header: 'Total Items', key: 'totalItems', width: 12 },
+			{ header: 'Products', key: 'products', width: 30 },
+			{ header: 'Date Shipped', key: 'dateShipped', width: 18 },
+			{ header: 'Date Delivered', key: 'dateDelivered', width: 18 },
+			{ header: 'Additional Info', key: 'additionalInfo', width: 25 },
+		];
+
+		sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+		sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+		for (const p of parcels) {
+			const items = (p as any).items || [];
+			const totalItems = items.reduce((sum: number, i: any) => sum + i.quantity, 0);
+			const productsList = items.map((i: any) => `${i.product?.name || '-'} (x${i.quantity})`).join(', ');
+
+			sheet.addRow({
+				trackingNumber: p.trackingNumber,
+				merchant: (p as any).merchant?.name || '-',
+				fromBranch: (p as any).fromBranch?.name || '-',
+				toBranch: (p as any).toBranch?.name || '-',
+				status: p.status,
+				size: p.size || '-',
+				totalItems,
+				products: productsList,
+				dateShipped: p.dateShipped ? new Date(p.dateShipped).toLocaleDateString() : '-',
+				dateDelivered: p.dateDelivered ? new Date(p.dateDelivered).toLocaleDateString() : '-',
+				additionalInfo: p.additionalInfo || '',
+			});
+		}
+
+		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
 	async create(createParcelDto: CreateParcelDto) {
