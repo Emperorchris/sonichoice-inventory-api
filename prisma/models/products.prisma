@@ -5,11 +5,7 @@ model Product {
     trackingId  String      @unique
     name        String
     description String?
-    // price       Float
-    // stock       Int
-    quantity    Int         @default(0)
-    branchId    String
-    branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    stocks      ProductStock[]
     dateReceived DateTime   @default(now())
     additionalInfo String?  @db.VarChar(3000)
     isDeleted   Boolean     @default(false)

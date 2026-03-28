@@ -10,7 +10,7 @@ model Branch {
     email        String?        @unique
     users        User[]
     invites      Invites[]
-    products      Product[]
+    productStocks ProductStock[]
     activityLogs ActivityLogs[]
     isDeleted    Boolean        @default(false)
     deletedAt    DateTime?

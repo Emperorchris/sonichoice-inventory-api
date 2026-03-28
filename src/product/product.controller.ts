@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -9,8 +9,8 @@ export class ProductController {
   constructor(private readonly productService: ProductService) { }
 
   @Post()
-  create(@Body() createProductDto: CreateProductDto, @Req() req: any) {
-    return this.productService.create(createProductDto, req.user.branchId);
+  create(@Body() createProductDto: CreateProductDto) {
+    return this.productService.create(createProductDto);
   }
 
   @Get()

@@ -12,6 +12,11 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 
+const PRODUCT_INCLUDE = {
+	merchant: true,
+	stocks: { include: { branch: true } },
+} as const;
+
 @Injectable()
 export class ProductService {
 	private readonly logger = new Logger(ProductService.name);
@@ -19,7 +24,7 @@ export class ProductService {
 	constructor(private readonly prisma: PrismaService) { }
 
 	private buildWhereFilter(search?: string, merchantId?: string, branchId?: string) {
-		const where: any = {};
+		const where: any = { isDeleted: false };
 		if (search) {
 			const term = search.toLowerCase();
 			where.OR = [
@@ -32,7 +37,7 @@ export class ProductService {
 			where.merchantId = merchantId;
 		}
 		if (branchId) {
-			where.branchId = branchId;
+			where.stocks = { some: { branchId } };
 		}
 		return where;
 	}
@@ -41,7 +46,7 @@ export class ProductService {
 		const where = this.buildWhereFilter(search, merchantId);
 		return this.prisma.product.findMany({
 			where,
-			include: { merchant: true, branch: true },
+			include: PRODUCT_INCLUDE,
 		});
 	}
 
@@ -60,8 +65,8 @@ export class ProductService {
 			doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()} | Total: ${products.length}`, { align: 'center' });
 			doc.moveDown();
 
-			const headers = ['Tracking ID', 'Name', 'Merchant', 'Branch', 'Qty', 'Date Received'];
-			const colWidths = [130, 150, 120, 120, 50, 100];
+			const headers = ['Tracking ID', 'Name', 'Merchant', 'Branch', 'Qty', 'Low Alert', 'Date Received'];
+			const colWidths = [120, 130, 100, 100, 50, 60, 100];
 			const startX = 30;
 			let y = doc.y;
 
@@ -79,24 +84,34 @@ export class ProductService {
 			// Data rows
 			doc.font('Helvetica').fontSize(8);
 			for (const p of products) {
-				if (y > 550) {
-					doc.addPage();
-					y = 30;
+				const stocks = (p as any).stocks || [];
+				if (stocks.length === 0) {
+					if (y > 550) { doc.addPage(); y = 30; }
+					x = startX;
+					const row = [
+						p.trackingId, p.name,
+						(p as any).merchant?.name || '-',
+						'-', '0', '-',
+						new Date(p.dateReceived).toLocaleDateString(),
+					];
+					row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+					y += 18;
+				} else {
+					for (const stock of stocks) {
+						if (y > 550) { doc.addPage(); y = 30; }
+						x = startX;
+						const row = [
+							p.trackingId, p.name,
+							(p as any).merchant?.name || '-',
+							stock.branch?.name || '-',
+							String(stock.quantity),
+							String(stock.lowStockAlert),
+							new Date(p.dateReceived).toLocaleDateString(),
+						];
+						row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
+						y += 18;
+					}
 				}
-				x = startX;
-				const row = [
-					p.trackingId,
-					p.name,
-					(p as any).merchant?.name || '-',
-					(p as any).branch?.name || '-',
-					String(p.quantity),
-					new Date(p.dateReceived).toLocaleDateString(),
-				];
-				row.forEach((cell, i) => {
-					doc.text(cell, x, y, { width: colWidths[i] });
-					x += colWidths[i];
-				});
-				y += 18;
 			}
 
 			doc.end();
@@ -115,6 +130,7 @@ export class ProductService {
 			{ header: 'Merchant', key: 'merchant', width: 20 },
 			{ header: 'Branch', key: 'branch', width: 20 },
 			{ header: 'Quantity', key: 'quantity', width: 10 },
+			{ header: 'Low Alert', key: 'lowStockAlert', width: 12 },
 			{ header: 'Date Received', key: 'dateReceived', width: 18 },
 			{ header: 'Additional Info', key: 'additionalInfo', width: 30 },
 		];
@@ -125,28 +141,58 @@ export class ProductService {
 		sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
 
 		for (const p of products) {
-			sheet.addRow({
-				trackingId: p.trackingId,
-				name: p.name,
-				description: p.description || '',
-				merchant: (p as any).merchant?.name || '-',
-				branch: (p as any).branch?.name || '-',
-				quantity: p.quantity,
-				dateReceived: new Date(p.dateReceived).toLocaleDateString(),
-				additionalInfo: p.additionalInfo || '',
-			});
+			const stocks = (p as any).stocks || [];
+			if (stocks.length === 0) {
+				sheet.addRow({
+					trackingId: p.trackingId, name: p.name,
+					description: p.description || '',
+					merchant: (p as any).merchant?.name || '-',
+					branch: '-', quantity: 0, lowStockAlert: '-',
+					dateReceived: new Date(p.dateReceived).toLocaleDateString(),
+					additionalInfo: p.additionalInfo || '',
+				});
+			} else {
+				for (const stock of stocks) {
+					sheet.addRow({
+						trackingId: p.trackingId, name: p.name,
+						description: p.description || '',
+						merchant: (p as any).merchant?.name || '-',
+						branch: stock.branch?.name || '-',
+						quantity: stock.quantity,
+						lowStockAlert: stock.lowStockAlert,
+						dateReceived: new Date(p.dateReceived).toLocaleDateString(),
+						additionalInfo: p.additionalInfo || '',
+					});
+				}
+			}
 		}
 
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createProductDto: CreateProductDto, branchId: string) {
+	async create(createProductDto: CreateProductDto) {
 		try {
+			const { branches, ...productData } = createProductDto;
+
 			const merchant = await this.prisma.merchant.findFirst({
-				where: { id: createProductDto.merchantId },
+				where: { id: productData.merchantId },
 			});
 			if (!merchant) {
-				throw new NotFoundException(`Merchant with ID ${createProductDto.merchantId} not found`);
+				throw new NotFoundException(`Merchant with ID ${productData.merchantId} not found`);
+			}
+
+			// Validate all branch IDs exist
+			if (branches?.length) {
+				const branchIds = branches.map(b => b.branchId);
+				const existingBranches = await this.prisma.branch.findMany({
+					where: { id: { in: branchIds }, isDeleted: false },
+					select: { id: true },
+				});
+				const foundIds = new Set(existingBranches.map(b => b.id));
+				const missing = branchIds.filter(id => !foundIds.has(id));
+				if (missing.length) {
+					throw new NotFoundException(`Branch(es) not found: ${missing.join(', ')}`);
+				}
 			}
 
 			const prefix = merchant.name.substring(0, 4).toUpperCase();
@@ -154,10 +200,24 @@ export class ProductService {
 			const unique = randomBytes(4).toString('hex').toUpperCase();
 			const trackingId = `${prefix}-${year}-${unique}`;
 
-			return new Product(await this.prisma.product.create({
-				data: { ...createProductDto, branchId, trackingId },
-				include: { merchant: true, branch: true },
-			}));
+			const product = await this.prisma.product.create({
+				data: {
+					...productData,
+					trackingId,
+					stocks: branches?.length
+						? {
+							create: branches.map(b => ({
+								branchId: b.branchId,
+								quantity: b.quantity,
+								lowStockAlert: b.lowStockAlert ?? 10,
+							})),
+						}
+						: undefined,
+				},
+				include: PRODUCT_INCLUDE,
+			});
+
+			return new Product(product);
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;
@@ -178,7 +238,7 @@ export class ProductService {
 					where,
 					skip,
 					take,
-					include: { merchant: true, branch: true },
+					include: PRODUCT_INCLUDE,
 				}),
 				this.prisma.product.count({ where }),
 			]);
@@ -200,8 +260,8 @@ export class ProductService {
 	async findOne(id: string) {
 		try {
 			const product = await this.prisma.product.findFirst({
-				where: { id },
-				include: { merchant: true, branch: true },
+				where: { id, isDeleted: false },
+				include: PRODUCT_INCLUDE,
 			});
 			if (!product) {
 				throw new NotFoundException(`Product with ID ${id} not found`);
@@ -220,20 +280,50 @@ export class ProductService {
 		try {
 			await this.findOne(id);
 
-			if (updateProductDto.merchantId) {
+			const { branches, ...productData } = updateProductDto;
+
+			if (productData.merchantId) {
 				const merchant = await this.prisma.merchant.findFirst({
-					where: { id: updateProductDto.merchantId },
+					where: { id: productData.merchantId },
 				});
 				if (!merchant) {
-					throw new NotFoundException(`Merchant with ID ${updateProductDto.merchantId} not found`);
+					throw new NotFoundException(`Merchant with ID ${productData.merchantId} not found`);
 				}
 			}
 
-			return new Product(await this.prisma.product.update({
+			// Validate all branch IDs exist
+			if (branches?.length) {
+				const branchIds = branches.map(b => b.branchId);
+				const existingBranches = await this.prisma.branch.findMany({
+					where: { id: { in: branchIds }, isDeleted: false },
+					select: { id: true },
+				});
+				const foundIds = new Set(existingBranches.map(b => b.id));
+				const missing = branchIds.filter(id => !foundIds.has(id));
+				if (missing.length) {
+					throw new NotFoundException(`Branch(es) not found: ${missing.join(', ')}`);
+				}
+			}
+
+			const product = await this.prisma.product.update({
 				where: { id },
-				data: updateProductDto,
-				include: { merchant: true, branch: true },
-			}));
+				data: {
+					...productData,
+					stocks: branches
+						? {
+							deleteMany: {},
+							create: branches.map(b => ({
+								branchId: b.branchId,
+								quantity: b.quantity,
+								lowStockAlert: b.lowStockAlert ?? 10,
+							})),
+						}
+						: undefined,
+				},
+				include: PRODUCT_INCLUDE,
+			});
+
+			return new Product(product);
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;
@@ -249,7 +339,7 @@ export class ProductService {
 			return new Product(await this.prisma.product.update({
 				where: { id },
 				data: { isDeleted: true, deletedAt: new Date() },
-				include: { merchant: true, branch: true },
+				include: PRODUCT_INCLUDE,
 			}));
 		} catch (error) {
 			if (error instanceof NotFoundException) {

@@ -2,6 +2,24 @@ import { Exclude } from 'class-transformer';
 import { Merchant } from '../../merchant/entities/merchant.entity';
 import { Branch } from '../../branch/entities/branch.entity';
 
+export class ProductStock {
+    id: string;
+    productId: string;
+    branchId: string;
+    branch?: Branch;
+    quantity: number;
+    lowStockAlert: number;
+    createdAt: Date;
+    updatedAt: Date;
+
+    constructor(partial: Partial<ProductStock>) {
+        Object.assign(this, partial);
+        if (partial.branch) {
+            this.branch = new Branch(partial.branch);
+        }
+    }
+}
+
 export class Product {
     id: string;
     trackingId: string;
@@ -9,9 +27,7 @@ export class Product {
     merchant?: Merchant;
     name: string;
     description?: string | null;
-    quantity: number;
-    branchId: string;
-    branch?: Branch;
+    stocks?: ProductStock[];
     dateReceived: Date;
     additionalInfo?: string | null;
     createdAt: Date;
@@ -27,8 +43,8 @@ export class Product {
         if (partial.merchant) {
             this.merchant = new Merchant(partial.merchant);
         }
-        if (partial.branch) {
-            this.branch = new Branch(partial.branch);
+        if (partial.stocks) {
+            this.stocks = partial.stocks.map(s => new ProductStock(s));
         }
     }
 }
