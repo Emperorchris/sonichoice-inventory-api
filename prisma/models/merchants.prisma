@@ -12,6 +12,7 @@ model Merchant{
     // branches    Branch[]
     status      MerchantStatus @default(ACTIVE)
     products    Product[]
+    parcels     Parcel[]
     isDeleted   Boolean     @default(false)
     deletedAt   DateTime?
     createdAt   DateTime    @default(now())

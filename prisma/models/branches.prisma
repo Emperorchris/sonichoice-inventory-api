@@ -11,7 +11,10 @@ model Branch {
     users        User[]
     invites      Invites[]
     productStocks ProductStock[]
-    activityLogs ActivityLogs[]
+    activityLogs    ActivityLogs[]
+    parcelsFrom     Parcel[]       @relation("FromBranch")
+    parcelsTo       Parcel[]       @relation("ToBranch")
+    parcelsCurrent  Parcel[]
     isDeleted    Boolean        @default(false)
     deletedAt    DateTime?
     createdAt    DateTime       @default(now())

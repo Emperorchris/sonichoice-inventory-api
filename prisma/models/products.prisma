@@ -6,6 +6,7 @@ model Product {
     name        String
     description String?
     stocks      ProductStock[]
+    parcelItems ParcelItem[]
     dateReceived DateTime   @default(now())
     additionalInfo String?  @db.VarChar(3000)
     isDeleted   Boolean     @default(false)

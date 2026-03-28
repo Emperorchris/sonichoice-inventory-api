@@ -10,6 +10,7 @@ export class Merchant {
     color?: string | null;
     status: MerchantStatus;
     products?: Product[];
+    parcels?: any[];
     createdAt: Date;
     updatedAt: Date;
 
@@ -22,6 +23,10 @@ export class Merchant {
         Object.assign(this, partial);
         if (partial.products) {
             this.products = partial.products.map(p => new Product(p));
+        }
+        if (partial.parcels) {
+            const { Parcel } = require('../../parcel/entities/parcel.entity');
+            this.parcels = partial.parcels.map(p => new Parcel(p));
         }
     }
 }

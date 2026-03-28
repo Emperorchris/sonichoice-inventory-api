@@ -13,6 +13,8 @@ export class Branch {
     users?: any[];
     productStocks?: any[];
     invites?: any[];
+    parcelsFrom?: any[];
+    parcelsTo?: any[];
     createdAt: Date;
     updatedAt: Date;
 
@@ -33,6 +35,14 @@ export class Branch {
         if (partial.invites) {
             const { Invite } = require('../../invites/entities/invite.entity');
             this.invites = partial.invites.map(i => new Invite(i));
+        }
+        if (partial.parcelsFrom) {
+            const { Parcel } = require('../../parcel/entities/parcel.entity');
+            this.parcelsFrom = partial.parcelsFrom.map(p => new Parcel(p));
+        }
+        if (partial.parcelsTo) {
+            const { Parcel } = require('../../parcel/entities/parcel.entity');
+            this.parcelsTo = partial.parcelsTo.map(p => new Parcel(p));
         }
     }
 }

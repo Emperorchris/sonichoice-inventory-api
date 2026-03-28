@@ -1,0 +1,48 @@
+model Parcel {
+    id              String       @id @default(uuid())
+    trackingNumber  String       @unique
+    merchantId      String
+    merchant        Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+    size            ParcelSize?
+    fromBranchId    String
+    fromBranch      Branch       @relation("FromBranch", fields: [fromBranchId], references: [id], onDelete: Cascade)
+    toBranchId      String
+    toBranch        Branch       @relation("ToBranch", fields: [toBranchId], references: [id], onDelete: Cascade)
+    currentBranchId String
+    currentBranch   Branch       @relation(fields: [currentBranchId], references: [id], onDelete: Cascade)
+    items           ParcelItem[]
+    status          ParcelStatus @default(PENDING)
+    dateShipped     DateTime?    @default(now())
+    dateDelivered   DateTime?
+    additionalInfo  String?      @db.VarChar(3000)
+    isDeleted       Boolean      @default(false)
+    deletedAt       DateTime?
+    createdAt       DateTime     @default(now())
+    updatedAt       DateTime     @updatedAt
+}
+
+model ParcelItem {
+    id        String  @id @default(uuid())
+    parcelId  String
+    parcel    Parcel  @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+    quantity  Int     @default(1)
+
+    @@unique([parcelId, productId])
+}
+
+enum ParcelStatus {
+    PENDING
+    IN_TRANSIT
+    RECEIVED
+    RETURNED
+    CANCELLED
+}
+
+enum ParcelSize {
+    SMALL
+    MEDIUM
+    LARGE
+    EXTRA_LARGE
+}
