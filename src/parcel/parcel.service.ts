@@ -458,16 +458,16 @@ export class ParcelService {
 						});
 					}
 
-					updateData.items = {
-						deleteMany: {},
-						create: items.map(i => ({
-							product: { connect: { id: i.productId } },
-							quantity: i.quantity,
-						})),
-					};
+					// Delete old items first, then update parcel, then create new items
+					// (avoids unique constraint race condition from nested deleteMany+create)
+					await tx.parcelItem.deleteMany({ where: { parcelId: id } });
+					await tx.parcel.update({ where: { id }, data: updateData });
+					await tx.parcelItem.createMany({
+						data: items.map(i => ({ parcelId: id, productId: i.productId, quantity: i.quantity })),
+					});
 
-					return tx.parcel.update({ where: { id }, data: updateData, include: PARCEL_INCLUDE });
-				});
+					return tx.parcel.findFirstOrThrow({ where: { id }, include: PARCEL_INCLUDE });
+				}, { timeout: 15000 });
 
 				return new Parcel(parcel);
 			}
