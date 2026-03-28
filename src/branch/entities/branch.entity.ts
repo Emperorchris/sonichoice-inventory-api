@@ -15,6 +15,9 @@ export class Branch {
     invites?: any[];
     parcelsFrom?: any[];
     parcelsTo?: any[];
+    totalProducts?: number;
+    productsInTransit?: number;
+    productsDelivered?: number;
     createdAt: Date;
     updatedAt: Date;
 
@@ -43,6 +46,12 @@ export class Branch {
         if (partial.parcelsTo) {
             const { Parcel } = require('../../parcel/entities/parcel.entity');
             this.parcelsTo = partial.parcelsTo.map(p => new Parcel(p));
+        }
+        const counts = (partial as any)._count;
+        if (counts) {
+            this.totalProducts = counts.productStocks;
+            this.productsInTransit = counts.parcelsFrom;
+            this.productsDelivered = counts.parcelsTo;
         }
     }
 }

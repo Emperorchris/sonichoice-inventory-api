@@ -1,12 +1,13 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateParcelDto } from './create-parcel.dto';
 import { IsEnum, IsOptional } from 'class-validator';
+import { ParcelStatus } from 'generated/prisma/enums';
 
 export class UpdateParcelDto extends PartialType(CreateParcelDto) {}
 
 export class UpdateParcelStatusDto {
-    @IsEnum(['PENDING', 'IN_TRANSIT', 'RECEIVED', 'RETURNED', 'CANCELLED'], {
+    @IsEnum(ParcelStatus, {
         message: 'Status must be PENDING, IN_TRANSIT, RECEIVED, RETURNED, or CANCELLED',
     })
-    status: string;
+    status: ParcelStatus;
 }
