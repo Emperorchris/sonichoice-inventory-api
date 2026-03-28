@@ -50,6 +50,12 @@ export class UpdatePasswordDto {
 }
 
 
+export class RefreshTokenDto {
+    @IsNotEmpty({ message: "Refresh token is required" })
+    @IsString()
+    refreshToken: string;
+}
+
 export class ResetPasswordDto {
     @IsNotEmpty({ message: "Reset token is required" })
     @IsString()

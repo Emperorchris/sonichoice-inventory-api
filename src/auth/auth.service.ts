@@ -120,7 +120,50 @@ export class AuthService {
 			}),
 		]);
 
+		// Store refresh token in DB
+		const decoded = this.jwtService.decode(refreshToken) as { exp: number };
+		await this.prismaService.refreshToken.create({
+			data: {
+				token: refreshToken,
+				userId,
+				expiryDate: new Date(decoded.exp * 1000),
+			},
+		});
+
 		return { accessToken, refreshToken };
+	}
+
+	async refreshTokens(oldRefreshToken: string) {
+		try {
+			// Verify the refresh token JWT
+			const payload = await this.jwtService.verifyAsync(oldRefreshToken, {
+				secret: this.authConfiguration.jwtRefreshSecret,
+			});
+
+			// Check if token exists in DB
+			const storedToken = await this.prismaService.refreshToken.findUnique({
+				where: { token: oldRefreshToken },
+			});
+
+			if (!storedToken) {
+				throw new ForbiddenException('Refresh token not found or already used');
+			}
+
+			// Delete the old refresh token (token rotation)
+			await this.prismaService.refreshToken.delete({
+				where: { id: storedToken.id },
+			});
+
+			// Generate new token pair
+			const { accessToken, refreshToken } = await this.generateTokens(payload.sub);
+
+			return { accessToken, refreshToken };
+		} catch (error) {
+			if (error instanceof ForbiddenException) {
+				throw error;
+			}
+			throw new ForbiddenException('Invalid or expired refresh token');
+		}
 	}
 
 
@@ -162,6 +205,18 @@ export class AuthService {
 		}
 	}
 
+
+	async logout(userId: string) {
+		try {
+			await this.prismaService.refreshToken.deleteMany({
+				where: { userId },
+			});
+
+			return { message: 'Logged out successfully' };
+		} catch (error) {
+			throw new InternalServerErrorException('Failed to logout', error);
+		}
+	}
 
 	async requestPasswordReset(email: string) {
 		try {
