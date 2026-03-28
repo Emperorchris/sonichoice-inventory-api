@@ -33,10 +33,14 @@ export class ParcelService {
 			const term = search.toLowerCase();
 			where.OR = [
 				{ trackingNumber: { contains: term } },
-				{ additionalInfo: { contains: term } },
+				// { additionalInfo: { contains: term } },
+				{ items: { some: { product: { name: { contains: term } } } } },
 			];
 		}
-		if (merchantId) where.items = { some: { product: { merchantId } } };
+		if (merchantId) where.AND = [
+			...(where.AND ?? []),
+			{ items: { some: { product: { merchantId } } } },
+		];
 		if (status) where.status = status.toUpperCase();
 		if (fromBranchId) where.fromBranchId = fromBranchId;
 		if (toBranchId) where.toBranchId = toBranchId;
