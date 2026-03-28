@@ -78,7 +78,7 @@ export class BranchService {
 		try {
 			const branch = await this.prisma.branch.findFirst({ where: { id }, include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } } });
 			if (!branch) {
-				throw new NotFoundException(`Branch with ID ${id} not found`);
+				throw new NotFoundException(`Branch not found`);
 			}
 			return new Branch(branch);
 		} catch (error) {
@@ -86,7 +86,7 @@ export class BranchService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve branch ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve branch`, error);
 		}
 	}
 
@@ -120,7 +120,7 @@ export class BranchService {
 				throw new ConflictException('Update would result in a duplicate branch entry');
 			}
 			this.logger.error(`Failed to update branch ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update branch`, error);
 		}
 	}
 
@@ -134,7 +134,7 @@ export class BranchService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete branch ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete branch with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete branch`, error);
 		}
 	}
 }

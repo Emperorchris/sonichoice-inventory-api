@@ -179,7 +179,7 @@ export class ProductService {
 				where: { id: productData.merchantId },
 			});
 			if (!merchant) {
-				throw new NotFoundException(`Merchant with ID ${productData.merchantId} not found`);
+				throw new NotFoundException(`Merchant not found`);
 			}
 
 			// Validate branches
@@ -197,7 +197,7 @@ export class ProductService {
 				const foundIds = new Set(existingBranches.map(b => b.id));
 				const missing = branchIds.filter(id => !foundIds.has(id));
 				if (missing.length) {
-					throw new NotFoundException(`Branch(es) not found: ${missing.join(', ')}`);
+					throw new NotFoundException(`One or more branches were not found`);
 				}
 			}
 
@@ -270,7 +270,7 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			});
 			if (!product) {
-				throw new NotFoundException(`Product with ID ${id} not found`);
+				throw new NotFoundException(`Product not found`);
 			}
 			return new Product(product);
 		} catch (error) {
@@ -278,7 +278,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve product with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve product`, error);
 		}
 	}
 
@@ -293,7 +293,7 @@ export class ProductService {
 					where: { id: productData.merchantId },
 				});
 				if (!merchant) {
-					throw new NotFoundException(`Merchant with ID ${productData.merchantId} not found`);
+					throw new NotFoundException(`Merchant not found`);
 				}
 			}
 
@@ -312,7 +312,7 @@ export class ProductService {
 				const foundIds = new Set(existingBranches.map(b => b.id));
 				const missing = branchIds.filter(id => !foundIds.has(id));
 				if (missing.length) {
-					throw new NotFoundException(`Branch(es) not found: ${missing.join(', ')}`);
+					throw new NotFoundException(`One or more branches were not found`);
 				}
 			}
 
@@ -340,7 +340,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to update product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update product with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update product`, error);
 		}
 	}
 
@@ -354,7 +354,7 @@ export class ProductService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete product ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete product with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete product`, error);
 		}
 	}
 }

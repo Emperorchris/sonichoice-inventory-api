@@ -194,7 +194,7 @@ export class MerchantService {
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			});
 			if (!merchant) {
-				throw new NotFoundException(`Merchant with ID ${id} not found`);
+				throw new NotFoundException(`Merchant not found`);
 			}
 			return new Merchant(merchant);
 		} catch (error) {
@@ -202,7 +202,7 @@ export class MerchantService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve merchant with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve merchant`, error);
 		}
 	}
 
@@ -236,7 +236,7 @@ export class MerchantService {
 				throw new ConflictException('Update would result in a duplicate merchant entry');
 			}
 			this.logger.error(`Failed to update merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update merchant with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update merchant`, error);
 		}
 	}
 
@@ -250,7 +250,7 @@ export class MerchantService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete merchant ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete merchant with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete merchant`, error);
 		}
 	}
 }

@@ -155,9 +155,10 @@ export class ParcelService {
 			// Validate merchant
 			const merchant = await this.prisma.merchant.findFirst({
 				where: { id: parcelData.merchantId },
+				select: { id: true, name: true },
 			});
 			if (!merchant) {
-				throw new NotFoundException(`Merchant with ID ${parcelData.merchantId} not found`);
+				throw new NotFoundException(`Merchant not found`);
 			}
 
 			// Validate from/to branches exist and are different
@@ -166,11 +167,11 @@ export class ParcelService {
 			}
 
 			const [fromBranch, toBranch] = await Promise.all([
-				this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId } }),
-				this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId } }),
+				this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId }, select: { id: true, name: true } }),
+				this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId }, select: { id: true, name: true } }),
 			]);
-			if (!fromBranch) throw new NotFoundException(`From branch with ID ${parcelData.fromBranchId} not found`);
-			if (!toBranch) throw new NotFoundException(`To branch with ID ${parcelData.toBranchId} not found`);
+			if (!fromBranch) throw new NotFoundException(`Source branch not found`);
+			if (!toBranch) throw new NotFoundException(`Destination branch not found`);
 
 			// Validate items - no duplicate products
 			const productIds = items.map(i => i.productId);
@@ -182,12 +183,13 @@ export class ParcelService {
 			// Validate all products exist
 			const products = await this.prisma.product.findMany({
 				where: { id: { in: productIds } },
-				select: { id: true },
+				select: { id: true, name: true },
 			});
+			const productNameMap = new Map(products.map(p => [p.id, p.name]));
 			const foundIds = new Set(products.map(p => p.id));
-			const missing = productIds.filter(id => !foundIds.has(id));
-			if (missing.length) {
-				throw new NotFoundException(`Product(s) not found: ${missing.join(', ')}`);
+			const missingIds = productIds.filter(id => !foundIds.has(id));
+			if (missingIds.length) {
+				throw new NotFoundException(`One or more products were not found`);
 			}
 
 			// Validate stock availability in fromBranch
@@ -201,12 +203,13 @@ export class ParcelService {
 
 			for (const item of items) {
 				const stock = stockMap.get(item.productId);
+				const productName = productNameMap.get(item.productId) ?? 'Product';
 				if (!stock) {
-					throw new BadRequestException(`Product ${item.productId} has no stock in the source branch`);
+					throw new BadRequestException(`"${productName}" has no stock in the source branch`);
 				}
 				if (stock.quantity < item.quantity) {
 					throw new BadRequestException(
-						`Insufficient stock for product ${item.productId}. Available: ${stock.quantity}, Requested: ${item.quantity}`,
+						`Insufficient stock for "${productName}". Available: ${stock.quantity}, Requested: ${item.quantity}`,
 					);
 				}
 			}
@@ -316,7 +319,7 @@ export class ParcelService {
 				include: PARCEL_INCLUDE,
 			});
 			if (!parcel) {
-				throw new NotFoundException(`Parcel with ID ${id} not found`);
+				throw new NotFoundException(`Parcel not found`);
 			}
 			return new Parcel(parcel);
 		} catch (error) {
@@ -324,7 +327,7 @@ export class ParcelService {
 				throw error;
 			}
 			this.logger.error(`Failed to retrieve parcel ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve parcel with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve parcel`, error);
 		}
 	}
 
@@ -364,17 +367,17 @@ export class ParcelService {
 
 			if (parcelData.merchantId) {
 				const merchant = await this.prisma.merchant.findFirst({ where: { id: parcelData.merchantId } });
-				if (!merchant) throw new NotFoundException(`Merchant with ID ${parcelData.merchantId} not found`);
+				if (!merchant) throw new NotFoundException(`Merchant not found`);
 			}
 
 			if (parcelData.fromBranchId) {
 				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.fromBranchId } });
-				if (!branch) throw new NotFoundException(`From branch with ID ${parcelData.fromBranchId} not found`);
+				if (!branch) throw new NotFoundException(`Source branch not found`);
 			}
 
 			if (parcelData.toBranchId) {
 				const branch = await this.prisma.branch.findFirst({ where: { id: parcelData.toBranchId } });
-				if (!branch) throw new NotFoundException(`To branch with ID ${parcelData.toBranchId} not found`);
+				if (!branch) throw new NotFoundException(`Destination branch not found`);
 			}
 
 			// Validate new items if provided
@@ -387,12 +390,13 @@ export class ParcelService {
 
 				const products = await this.prisma.product.findMany({
 					where: { id: { in: productIds } },
-					select: { id: true },
+					select: { id: true, name: true },
 				});
+				const productNameMap = new Map(products.map(p => [p.id, p.name]));
 				const foundIds = new Set(products.map(p => p.id));
 				const missing = productIds.filter(id => !foundIds.has(id));
 				if (missing.length) {
-					throw new NotFoundException(`Product(s) not found: ${missing.join(', ')}`);
+					throw new NotFoundException(`One or more products were not found`);
 				}
 
 				// Validate stock availability in fromBranch for new items
@@ -413,12 +417,13 @@ export class ParcelService {
 
 				for (const item of items) {
 					const stock = stockMap.get(item.productId);
+					const productName = productNameMap.get(item.productId) ?? 'Product';
 					if (!stock) {
-						throw new BadRequestException(`Product ${item.productId} has no stock in the source branch`);
+						throw new BadRequestException(`"${productName}" has no stock in the source branch`);
 					}
 					if (stock.quantity < item.quantity) {
 						throw new BadRequestException(
-							`Insufficient stock for product ${item.productId}. Available: ${stock.quantity}, Requested: ${item.quantity}`,
+							`Insufficient stock for "${productName}". Available: ${stock.quantity}, Requested: ${item.quantity}`,
 						);
 					}
 				}
@@ -492,7 +497,7 @@ export class ParcelService {
 				throw error;
 			}
 			this.logger.error(`Failed to update parcel ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update parcel with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update parcel`, error);
 		}
 	}
 
@@ -586,7 +591,7 @@ export class ParcelService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete parcel ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete parcel with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete parcel`, error);
 		}
 	}
 }

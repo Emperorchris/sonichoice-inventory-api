@@ -59,13 +59,13 @@ export class UserService {
 				include: USER_INCLUDE,
 			});
 			if (!user) {
-				throw new NotFoundException(`User with ID ${id} not found`);
+				throw new NotFoundException(`User not found`);
 			}
 			return new User(user);
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;
 			this.logger.error(`Failed to retrieve user ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to retrieve user with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to retrieve user`, error);
 		}
 	}
 
@@ -82,7 +82,7 @@ export class UserService {
 					where: { id: updateUserDto.branchId },
 				});
 				if (!branch) {
-					throw new NotFoundException(`Branch with ID ${updateUserDto.branchId} not found`);
+					throw new NotFoundException(`Branch not found`);
 				}
 			}
 
@@ -94,7 +94,7 @@ export class UserService {
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;
 			this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to update user with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to update user`, error);
 		}
 	}
 
@@ -106,7 +106,7 @@ export class UserService {
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;
 			this.logger.error(`Failed to delete user ${id}: ${error.message}`, error.stack);
-			throw new InternalServerErrorException(`Failed to delete user with ID ${id}`, error);
+			throw new InternalServerErrorException(`Failed to delete user`, error);
 		}
 	}
 }

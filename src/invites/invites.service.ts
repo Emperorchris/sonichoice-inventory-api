@@ -39,7 +39,7 @@ export class InvitesService {
 				where: { id: createInviteDto.branchId }
 			});
 			if (!branchExists) {
-				throw new NotFoundException(`Branch with ID ${createInviteDto.branchId} not found`);
+				throw new NotFoundException(`Branch not found`);
 			}
 
 			const existingInvite = await this.prisma.invites.findFirst({
@@ -216,7 +216,7 @@ export class InvitesService {
 				where: { id },
 			});
 			if (!invite) {
-				throw new NotFoundException(`Invite with ID ${id} not found`);
+				throw new NotFoundException(`Invite not found`);
 			}
 
 			await this.prisma.invites.delete({ where: { id } });
@@ -226,7 +226,7 @@ export class InvitesService {
 				throw error;
 			}
 			this.logger.error(`Failed to delete invite ${id}: ${error.message}`, error.stack);
-			throwInternalError(`Failed to delete invite with ID ${id}`, error);
+			throwInternalError(`Failed to delete invite`, error);
 		}
 	}
 }
