@@ -11,6 +11,7 @@ import { MerchantModule } from './merchant/merchant.module';
 import { ProductModule } from './product/product.module';
 import { ParcelModule } from './parcel/parcel.module';
 import { UserModule } from './user/user.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import authConfig from 'config/auth.config';
 import appConfig from 'config/app.config';
 
@@ -29,7 +30,8 @@ import appConfig from 'config/app.config';
     MerchantModule,
     ProductModule,
     ParcelModule,
-    UserModule
+    UserModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
