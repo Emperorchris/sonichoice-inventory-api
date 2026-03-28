@@ -30,7 +30,7 @@ export class MerchantService {
 
 			return new Merchant(await this.prisma.merchant.create({
 				data: createMerchantDto,
-				include: { products: { include: { stocks: { include: { branch: true } } } }, parcels: { include: { fromBranch: true, toBranch: true, currentBranch: true, items: { include: { product: true } } } } },
+				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException) {
@@ -73,7 +73,7 @@ export class MerchantService {
 					where,
 					skip,
 					take,
-					include: { products: { include: { stocks: { include: { branch: true } } } }, parcels: { include: { fromBranch: true, toBranch: true, currentBranch: true, items: { include: { product: true } } } } },
+					include: { products: { include: { stocks: { include: { branch: true } } } } },
 				}),
 				this.prisma.merchant.count({ where }),
 			]);
@@ -96,7 +96,7 @@ export class MerchantService {
 		try {
 			const merchant = await this.prisma.merchant.findFirst({
 				where: { id },
-				include: { products: { include: { stocks: { include: { branch: true } } } }, parcels: { include: { fromBranch: true, toBranch: true, currentBranch: true, items: { include: { product: true } } } } },
+				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			});
 			if (!merchant) {
 				throw new NotFoundException(`Merchant with ID ${id} not found`);
@@ -127,7 +127,7 @@ export class MerchantService {
 			return new Merchant(await this.prisma.merchant.update({
 				where: { id },
 				data: updateMerchantDto,
-				include: { products: { include: { stocks: { include: { branch: true } } } }, parcels: { include: { fromBranch: true, toBranch: true, currentBranch: true, items: { include: { product: true } } } } },
+				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
@@ -151,7 +151,7 @@ export class MerchantService {
 			return new Merchant(await this.prisma.merchant.update({
 				where: { id },
 				data: { isDeleted: true, deletedAt: new Date() },
-				include: { products: { include: { stocks: { include: { branch: true } } } }, parcels: { include: { fromBranch: true, toBranch: true, currentBranch: true, items: { include: { product: true } } } } },
+				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			}));
 		} catch (error) {
 			if (error instanceof NotFoundException) {

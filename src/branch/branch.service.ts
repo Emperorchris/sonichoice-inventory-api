@@ -31,7 +31,7 @@ export class BranchService {
 
 			return new Branch(await this.prisma.branch.create({
 				data: createBranchDto,
-				include: { users: true, productStocks: { include: { product: true } }, invites: true, parcelsFrom: { include: { merchant: true, toBranch: true, items: { include: { product: true } } } }, parcelsTo: { include: { merchant: true, fromBranch: true, items: { include: { product: true } } } } },
+				include: { users: true, productStocks: { include: { product: true } }, invites: true },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException) {
@@ -55,7 +55,7 @@ export class BranchService {
 			const skip = (page - 1) * take;
 
 			const [branches, total] = await Promise.all([
-				this.prisma.branch.findMany({ skip, take, include: { users: true, productStocks: { include: { product: true } }, invites: true, parcelsFrom: { include: { merchant: true, toBranch: true, items: { include: { product: true } } } }, parcelsTo: { include: { merchant: true, fromBranch: true, items: { include: { product: true } } } } } }),
+				this.prisma.branch.findMany({ skip, take, include: { users: true, productStocks: { include: { product: true } }, invites: true } }),
 				this.prisma.branch.count(),
 			]);
 
@@ -75,7 +75,7 @@ export class BranchService {
 
 	async findOne(id: string) {
 		try {
-			const branch = await this.prisma.branch.findFirst({ where: { id }, include: { users: true, productStocks: { include: { product: true } }, invites: true, parcelsFrom: { include: { merchant: true, toBranch: true, items: { include: { product: true } } } }, parcelsTo: { include: { merchant: true, fromBranch: true, items: { include: { product: true } } } } } });
+			const branch = await this.prisma.branch.findFirst({ where: { id }, include: { users: true, productStocks: { include: { product: true } }, invites: true } });
 			if (!branch) {
 				throw new NotFoundException(`Branch with ID ${id} not found`);
 			}
@@ -105,7 +105,7 @@ export class BranchService {
 			return new Branch(await this.prisma.branch.update({
 				where: { id },
 				data: updateBranchDto,
-				include: { users: true, productStocks: { include: { product: true } }, invites: true, parcelsFrom: { include: { merchant: true, toBranch: true, items: { include: { product: true } } } }, parcelsTo: { include: { merchant: true, fromBranch: true, items: { include: { product: true } } } } },
+				include: { users: true, productStocks: { include: { product: true } }, invites: true },
 			}));
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
@@ -126,7 +126,7 @@ export class BranchService {
 	async remove(id: string) {
 		try {
 			await this.findOne(id);
-			return new Branch(await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() }, include: { users: true, productStocks: { include: { product: true } }, invites: true, parcelsFrom: { include: { merchant: true, toBranch: true, items: { include: { product: true } } } }, parcelsTo: { include: { merchant: true, fromBranch: true, items: { include: { product: true } } } } } }));
+			return new Branch(await this.prisma.branch.update({ where: { id }, data: { isDeleted: true, deletedAt: new Date() }, include: { users: true, productStocks: { include: { product: true } }, invites: true } }));
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;
