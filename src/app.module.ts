@@ -10,6 +10,7 @@ import { MailModule } from './mail/mail.module';
 import { MerchantModule } from './merchant/merchant.module';
 import { ProductModule } from './product/product.module';
 import { ParcelModule } from './parcel/parcel.module';
+import { UserModule } from './user/user.module';
 import authConfig from 'config/auth.config';
 import appConfig from 'config/app.config';
 
@@ -27,7 +28,8 @@ import appConfig from 'config/app.config';
     MailModule,
     MerchantModule,
     ProductModule,
-    ParcelModule
+    ParcelModule,
+    UserModule
   ],
   controllers: [AppController],
   providers: [AppService],
