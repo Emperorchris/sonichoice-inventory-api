@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `ActivityLogs` ADD COLUMN `actionKeyword` ENUM('PARCEL', 'PRODUCT', 'STOCK', 'MERCHANT', 'BRANCH', 'USER', 'LOGIN', 'LOGOUT', 'OTHER') NULL;

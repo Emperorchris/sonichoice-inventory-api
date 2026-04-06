@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ActionKeywords } from 'generated/prisma/enums';
 import { User } from './entities/user.entity';
 
 const USER_INCLUDE = { branch: true } as const;
@@ -73,7 +74,7 @@ export class UserService {
 		return this.findOne(userId);
 	}
 
-	async update(id: string, updateUserDto: UpdateUserDto) {
+	async update(id: string, updateUserDto: UpdateUserDto, currentUser: { id: string; branchId: string }) {
 		try {
 			await this.findOne(id);
 
@@ -86,11 +87,23 @@ export class UserService {
 				}
 			}
 
-			return new User(await this.prisma.user.update({
+			const user = await this.prisma.user.update({
 				where: { id },
 				data: updateUserDto,
 				include: USER_INCLUDE,
-			}));
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: currentUser.id,
+					branchId: currentUser.branchId,
+					action: `Updated user "${user.name || user.email}"`,
+					actionDetails: `Updated fields: ${Object.keys(updateUserDto).join(', ')}`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
+			return new User(user);
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;
 			this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
@@ -98,10 +111,21 @@ export class UserService {
 		}
 	}
 
-	async remove(id: string) {
+	async remove(id: string, currentUser: { id: string; branchId: string }) {
 		try {
-			await this.findOne(id);
+			const user = await this.findOne(id);
 			await this.prisma.user.delete({ where: { id } });
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: currentUser.id,
+					branchId: currentUser.branchId,
+					action: `Deleted user "${user.name || user.email}"`,
+					actionDetails: `User "${user.name || user.email}" (${user.email}) was permanently removed`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
 			return { message: 'User deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) throw error;

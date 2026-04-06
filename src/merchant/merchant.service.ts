@@ -11,6 +11,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
 import { Prisma } from 'generated/prisma/client';
+import { ActionKeywords } from 'generated/prisma/enums';
 import { Merchant } from './entities/merchant.entity';
 
 @Injectable()
@@ -109,7 +110,7 @@ export class MerchantService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createMerchantDto: CreateMerchantDto) {
+	async create(createMerchantDto: CreateMerchantDto, user: { id: string; branchId: string }) {
 		try {
 			if (createMerchantDto.email) {
 				const existing = await this.prisma.merchant.findFirst({
@@ -120,10 +121,22 @@ export class MerchantService {
 				}
 			}
 
-			return new Merchant(await this.prisma.merchant.create({
+			const merchant = await this.prisma.merchant.create({
 				data: createMerchantDto,
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
-			}));
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Created merchant "${merchant.name}"`,
+					actionDetails: `Email: ${merchant.email || 'N/A'}, Phone: ${merchant.phone || 'N/A'}`,
+					actionKeyword: ActionKeywords.MERCHANT,
+				},
+			});
+
+			return new Merchant(merchant);
 		} catch (error) {
 			if (error instanceof ConflictException) {
 				throw error;
@@ -203,7 +216,7 @@ export class MerchantService {
 		}
 	}
 
-	async update(id: string, updateMerchantDto: UpdateMerchantDto) {
+	async update(id: string, updateMerchantDto: UpdateMerchantDto, user: { id: string; branchId: string }) {
 		try {
 			await this.findOne(id);
 
@@ -216,11 +229,23 @@ export class MerchantService {
 				}
 			}
 
-			return new Merchant(await this.prisma.merchant.update({
+			const merchant = await this.prisma.merchant.update({
 				where: { id },
 				data: updateMerchantDto,
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
-			}));
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Updated merchant "${merchant.name}"`,
+					actionDetails: `Updated fields: ${Object.keys(updateMerchantDto).join(', ')}`,
+					actionKeyword: ActionKeywords.MERCHANT,
+				},
+			});
+
+			return new Merchant(merchant);
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
 				throw error;
@@ -237,10 +262,21 @@ export class MerchantService {
 		}
 	}
 
-	async remove(id: string) {
+	async remove(id: string, user: { id: string; branchId: string }) {
 		try {
-			await this.findOne(id);
+			const merchant = await this.findOne(id);
 			await this.prisma.merchant.delete({ where: { id } });
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Deleted merchant "${merchant.name}"`,
+					actionDetails: `Merchant "${merchant.name}" was permanently removed`,
+					actionKeyword: ActionKeywords.MERCHANT,
+				},
+			});
+
 			return { message: 'Merchant deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {

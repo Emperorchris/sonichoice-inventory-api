@@ -12,6 +12,7 @@ import { ProductModule } from './product/product.module';
 import { ParcelModule } from './parcel/parcel.module';
 import { UserModule } from './user/user.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import authConfig from 'config/auth.config';
 import appConfig from 'config/app.config';
 
@@ -32,6 +33,7 @@ import appConfig from 'config/app.config';
     ParcelModule,
     UserModule,
     DashboardModule,
+    ActivityLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

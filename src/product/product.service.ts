@@ -11,6 +11,7 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ActionKeywords } from 'generated/prisma/enums';
 import { Product } from './entities/product.entity';
 
 const PRODUCT_INCLUDE = {
@@ -171,7 +172,7 @@ export class ProductService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createProductDto: CreateProductDto) {
+	async create(createProductDto: CreateProductDto, user: { id: string; branchId: string }) {
 		try {
 			const { branches, ...productData } = createProductDto;
 
@@ -221,6 +222,16 @@ export class ProductService {
 						: undefined,
 				},
 				include: PRODUCT_INCLUDE,
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Created product "${product.name}"`,
+					actionDetails: `Tracking ID: ${product.trackingId}`,
+					actionKeyword: ActionKeywords.PRODUCT,
+				},
 			});
 
 			return new Product(product);
@@ -282,7 +293,7 @@ export class ProductService {
 		}
 	}
 
-	async update(id: string, updateProductDto: UpdateProductDto) {
+	async update(id: string, updateProductDto: UpdateProductDto, user: { id: string; branchId: string }) {
 		try {
 			await this.findOne(id);
 
@@ -334,6 +345,16 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			});
 
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Updated product "${product.name}"`,
+					actionDetails: `Updated fields: ${Object.keys(updateProductDto).join(', ')}`,
+					actionKeyword: ActionKeywords.PRODUCT,
+				},
+			});
+
 			return new Product(product);
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -344,10 +365,21 @@ export class ProductService {
 		}
 	}
 
-	async remove(id: string) {
+	async remove(id: string, user: { id: string; branchId: string }) {
 		try {
-			await this.findOne(id);
+			const product = await this.findOne(id);
 			await this.prisma.product.delete({ where: { id } });
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Deleted product "${product.name}"`,
+					actionDetails: `Product "${product.name}" (${product.trackingId}) was permanently removed`,
+					actionKeyword: ActionKeywords.PRODUCT,
+				},
+			});
+
 			return { message: 'Product deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof BadRequestException) {

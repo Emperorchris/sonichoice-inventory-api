@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Req } from '@nestjs/common';
 import { BranchService } from './branch.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
@@ -16,8 +16,8 @@ export class BranchController {
   // @UseGuards(JwtAuthGuard)
   // @Roles(UserRole.ADMIN, UserRole.DIRECTOR, UserRole.SUPERVISOR)
   @Post()
-  create(@Body() createBranchDto: CreateBranchDto) {
-    return this.branchService.create(createBranchDto);
+  create(@Body() createBranchDto: CreateBranchDto, @Req() req: any) {
+    return this.branchService.create(createBranchDto, req.user);
   }
 
   // @IsPublic()
@@ -34,14 +34,14 @@ export class BranchController {
   // @UseGuards(JwtAuthGuard)
   // @Roles(UserRole.ADMIN, UserRole.DIRECTOR, UserRole.SUPERVISOR)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBranchDto: UpdateBranchDto) {
-    return this.branchService.update(id, updateBranchDto);
+  update(@Param('id') id: string, @Body() updateBranchDto: UpdateBranchDto, @Req() req: any) {
+    return this.branchService.update(id, updateBranchDto, req.user);
   }
 
   // @UseGuards(JwtAuthGuard)
   // @Roles(UserRole.ADMIN, UserRole.DIRECTOR, UserRole.SUPERVISOR)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.branchService.remove(id);
+  remove(@Param('id') id: string, @Req() req: any) {
+    return this.branchService.remove(id, req.user);
   }
 }

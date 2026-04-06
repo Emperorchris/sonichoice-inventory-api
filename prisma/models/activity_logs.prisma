@@ -1,3 +1,15 @@
+enum ActionKeywords {
+    PARCEL
+    PRODUCT
+    STOCK
+    MERCHANT
+    BRANCH
+    USER
+    LOGIN
+    LOGOUT
+    OTHER
+}
+
 model ActivityLogs {
     id            String    @id @default(uuid())
     userId        String
@@ -7,6 +19,7 @@ model ActivityLogs {
     action        String
     actionDetails String?
     actionType    String?
+    actionKeyword   ActionKeywords?     @default(OTHER)
     isDeleted     Boolean   @default(false)
     deletedAt     DateTime?
     createdAt     DateTime  @default(now())

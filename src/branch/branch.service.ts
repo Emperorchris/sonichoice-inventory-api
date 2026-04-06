@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { Prisma } from 'generated/prisma/client';
-import { ParcelStatus } from 'generated/prisma/enums';
+import { ActionKeywords, ParcelStatus } from 'generated/prisma/enums';
 import { Branch } from './entities/branch.entity';
 
 
@@ -19,7 +19,7 @@ export class BranchService {
 
 	constructor(private readonly prisma: PrismaService) { }
 
-	async create(createBranchDto: CreateBranchDto) {
+	async create(createBranchDto: CreateBranchDto, user: { id: string; branchId: string }) {
 		try {
 			if (createBranchDto.email) {
 				const existingBranch = await this.prisma.branch.findFirst({
@@ -30,10 +30,22 @@ export class BranchService {
 				}
 			}
 
-			return new Branch(await this.prisma.branch.create({
+			const branch = await this.prisma.branch.create({
 				data: createBranchDto,
 				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
-			}));
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Created branch "${branch.name}"`,
+					actionDetails: `City: ${branch.city || 'N/A'}, State: ${branch.state || 'N/A'}`,
+					actionKeyword: ActionKeywords.BRANCH,
+				},
+			});
+
+			return new Branch(branch);
 		} catch (error) {
 			if (error instanceof ConflictException) {
 				throw error;
@@ -90,7 +102,7 @@ export class BranchService {
 		}
 	}
 
-	async update(id: string, updateBranchDto: UpdateBranchDto) {
+	async update(id: string, updateBranchDto: UpdateBranchDto, user: { id: string; branchId: string }) {
 		try {
 			await this.findOne(id);
 
@@ -103,11 +115,23 @@ export class BranchService {
 				}
 			}
 
-			return new Branch(await this.prisma.branch.update({
+			const branch = await this.prisma.branch.update({
 				where: { id },
 				data: updateBranchDto,
 				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
-			}));
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Updated branch "${branch.name}"`,
+					actionDetails: `Updated fields: ${Object.keys(updateBranchDto).join(', ')}`,
+					actionKeyword: ActionKeywords.BRANCH,
+				},
+			});
+
+			return new Branch(branch);
 		} catch (error) {
 			if (error instanceof ConflictException || error instanceof NotFoundException) {
 				throw error;
@@ -124,10 +148,21 @@ export class BranchService {
 		}
 	}
 
-	async remove(id: string) {
+	async remove(id: string, user: { id: string; branchId: string }) {
 		try {
-			await this.findOne(id);
+			const branch = await this.findOne(id);
 			await this.prisma.branch.delete({ where: { id } });
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Deleted branch "${branch.name}"`,
+					actionDetails: `Branch "${branch.name}" was permanently removed`,
+					actionKeyword: ActionKeywords.BRANCH,
+				},
+			});
+
 			return { message: 'Branch deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {

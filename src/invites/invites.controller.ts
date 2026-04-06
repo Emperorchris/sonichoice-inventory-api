@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, Req } from '@nestjs/common';
 import { InvitesService } from './invites.service';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { IsPublic } from 'decorator/isPublic.decorator';
@@ -8,8 +8,8 @@ export class InvitesController {
   constructor(private readonly invitesService: InvitesService) { }
 
   @Post("send")
-  create(@Body() createInviteDto: CreateInviteDto) {
-    return this.invitesService.sendInvite(createInviteDto);
+  create(@Body() createInviteDto: CreateInviteDto, @Req() req: any) {
+    return this.invitesService.sendInvite(createInviteDto, req.user);
   }
   @Post("accept")
   acceptInvite(@Body() acceptInviteDto: AcceptInviteDto) {

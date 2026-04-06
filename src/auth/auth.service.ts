@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from 'src/user/entities/user.entity';
 import { randomBytes } from 'node:crypto';
 import { MailService } from 'src/mail/mail.service';
+import { ActionKeywords } from 'generated/prisma/enums';
 
 @Injectable()
 export class AuthService {
@@ -62,6 +63,16 @@ export class AuthService {
 				include: { branch: true },
 			});
 
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId: newUser.id,
+					branchId: newUser.branchId,
+					action: `New user "${newUser.name || newUser.email}" registered`,
+					actionDetails: `Branch: ${existingBranch.name}`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
 			return new User(newUser);
 		} catch (error) {
 			if (error instanceof UnprocessableEntityException) {
@@ -93,6 +104,16 @@ export class AuthService {
 			}
 
 			const { accessToken, refreshToken } = await this.generateTokens(user.id);
+
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `User "${user.name || user.email}" logged in`,
+					actionDetails: `Email: ${user.email}`,
+					actionKeyword: ActionKeywords.LOGIN,
+				},
+			});
 
 			return { user: new User(user), accessToken, refreshToken };
 		} catch (error) {
@@ -194,6 +215,16 @@ export class AuthService {
 				include: { branch: true },
 			});
 
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `User "${user.name || user.email}" updated their password`,
+					actionDetails: `Email: ${user.email}`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
 			return new User(updatedUser);
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof ForbiddenException) {
@@ -206,10 +237,20 @@ export class AuthService {
 	}
 
 
-	async logout(userId: string) {
+	async logout(userId: string, branchId: string) {
 		try {
 			await this.prismaService.refreshToken.deleteMany({
 				where: { userId },
+			});
+
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId,
+					branchId,
+					action: 'User logged out',
+					actionDetails: 'Session ended',
+					actionKeyword: ActionKeywords.LOGOUT,
+				},
 			});
 
 			return { message: 'Logged out successfully' };
@@ -252,6 +293,16 @@ export class AuthService {
 				throw new InternalServerErrorException('Failed to send password reset email');
 			}
 
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Password reset requested for "${user.name || user.email}"`,
+					actionDetails: `Reset email sent to ${user.email}`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
 			return { message: 'Password reset email sent successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof UnprocessableEntityException || error instanceof InternalServerErrorException) {
@@ -289,6 +340,16 @@ export class AuthService {
 
 			await this.prismaService.passwordReset.delete({
 				where: { id: passwordReset.id },
+			});
+
+			await this.prismaService.activityLogs.create({
+				data: {
+					userId: passwordReset.userId,
+					branchId: passwordReset.user.branchId,
+					action: `Password reset completed for "${passwordReset.user.name || passwordReset.user.email}"`,
+					actionDetails: `Password was successfully reset for ${passwordReset.user.email}`,
+					actionKeyword: ActionKeywords.USER,
+				},
 			});
 
 			return { message: 'Password reset successful' };

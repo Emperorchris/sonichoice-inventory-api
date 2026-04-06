@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsString } from "class-validator";
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { MerchantStatus } from "generated/prisma/enums";
 
 export class CreateMerchantDto {
@@ -6,6 +6,7 @@ export class CreateMerchantDto {
     @IsString({ message: "Please provide a valid name" })
     name: string;
 
+    @IsOptional()
     @IsEmail({}, { message: "Please provide a valid email" })
     email: string;
 

@@ -32,6 +32,6 @@ export class AuthController {
 
   @Post('logout')
   logout(@Req() req: any) {
-    return this.authService.logout(req.user.id);
+    return this.authService.logout(req.user.id, req.user.branchId);
   }
 }

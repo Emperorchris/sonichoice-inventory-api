@@ -3,7 +3,7 @@ import { throwInternalError } from '../common/utils/error.util';
 import { AcceptInviteDto, CreateInviteDto } from './dto/create-invite.dto';
 import { UpdateInviteDto } from './dto/update-invite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UserRole } from 'generated/prisma/enums';
+import { ActionKeywords, UserRole } from 'generated/prisma/enums';
 import { MailService } from 'src/mail/mail.service';
 import * as bycrypt from 'bcrypt';
 import { ConfigService, ConfigType } from '@nestjs/config';
@@ -31,7 +31,7 @@ export class InvitesService {
 		private readonly authService: AuthService,
 	) { }
 
-	async sendInvite(createInviteDto: CreateInviteDto) {
+	async sendInvite(createInviteDto: CreateInviteDto, user: { id: string; branchId: string }) {
 		try {
 			const frontendUrl = this.appConfiguration.frontendUrl || 'http://localhost:3000';
 
@@ -84,6 +84,16 @@ export class InvitesService {
 				include: { branch: true },
 			});
 
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Sent invite to "${createInviteDto.email}"`,
+					actionDetails: `Branch: ${branchExists.name}, Role: ${createInviteDto.role ?? 'USER'}`,
+					actionKeyword: ActionKeywords.USER,
+				},
+			});
+
 			return new Invite(invite);
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException) {
@@ -94,7 +104,6 @@ export class InvitesService {
 				error: error instanceof Error ? error.message : String(error),
 				stackTrace: error instanceof Error ? error.stack : undefined,
 				statusCode: 500,
-				// throw new InternalServerErrorException('Failed to create invite', error instanceof Error ? error.message : String(error));
 			});
 		}
 	}

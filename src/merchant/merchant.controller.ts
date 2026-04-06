@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { MerchantService } from './merchant.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
@@ -9,8 +9,8 @@ export class MerchantController {
   constructor(private readonly merchantService: MerchantService) {}
 
   @Post()
-  create(@Body() createMerchantDto: CreateMerchantDto) {
-    return this.merchantService.create(createMerchantDto);
+  create(@Body() createMerchantDto: CreateMerchantDto, @Req() req: any) {
+    return this.merchantService.create(createMerchantDto, req.user);
   }
 
   @Get()
@@ -56,12 +56,12 @@ export class MerchantController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMerchantDto: UpdateMerchantDto) {
-    return this.merchantService.update(id, updateMerchantDto);
+  update(@Param('id') id: string, @Body() updateMerchantDto: UpdateMerchantDto, @Req() req: any) {
+    return this.merchantService.update(id, updateMerchantDto, req.user);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.merchantService.remove(id);
+  remove(@Param('id') id: string, @Req() req: any) {
+    return this.merchantService.remove(id, req.user);
   }
 }

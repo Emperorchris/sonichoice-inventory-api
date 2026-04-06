@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { ParcelService } from './parcel.service';
 import { CreateParcelDto } from './dto/create-parcel.dto';
@@ -9,8 +9,8 @@ export class ParcelController {
     constructor(private readonly parcelService: ParcelService) {}
 
     @Post()
-    create(@Body() createParcelDto: CreateParcelDto) {
-        return this.parcelService.create(createParcelDto);
+    create(@Body() createParcelDto: CreateParcelDto, @Req() req: any) {
+        return this.parcelService.create(createParcelDto, req.user);
     }
 
     @Get()
@@ -70,17 +70,17 @@ export class ParcelController {
     }
 
     @Patch(':id')
-    update(@Param('id') id: string, @Body() updateParcelDto: UpdateParcelDto) {
-        return this.parcelService.update(id, updateParcelDto);
+    update(@Param('id') id: string, @Body() updateParcelDto: UpdateParcelDto, @Req() req: any) {
+        return this.parcelService.update(id, updateParcelDto, req.user);
     }
 
     @Patch(':id/status')
-    updateStatus(@Param('id') id: string, @Body() dto: UpdateParcelStatusDto) {
-        return this.parcelService.updateStatus(id, dto);
+    updateStatus(@Param('id') id: string, @Body() dto: UpdateParcelStatusDto, @Req() req: any) {
+        return this.parcelService.updateStatus(id, dto, req.user);
     }
 
     @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.parcelService.remove(id);
+    remove(@Param('id') id: string, @Req() req: any) {
+        return this.parcelService.remove(id, req.user);
     }
 }

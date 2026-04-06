@@ -12,7 +12,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateParcelDto } from './dto/create-parcel.dto';
 import { UpdateParcelDto, UpdateParcelStatusDto } from './dto/update-parcel.dto';
 import { Parcel } from './entities/parcel.entity';
-import { ParcelStatus } from 'generated/prisma/enums';
+import { ActionKeywords, ParcelStatus } from 'generated/prisma/enums';
 
 const PARCEL_INCLUDE = {
 	fromBranch: true,
@@ -151,7 +151,7 @@ export class ParcelService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createParcelDto: CreateParcelDto) {
+	async create(createParcelDto: CreateParcelDto, user: { id: string; branchId: string }) {
 		try {
 			const { items, ...parcelData } = createParcelDto;
 
@@ -264,6 +264,16 @@ export class ParcelService {
 				});
 			});
 
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Created parcel "${parcel.trackingNumber}"`,
+					actionDetails: `From: ${fromBranch.name}, To: ${toBranch.name}, Items: ${items.length}`,
+					actionKeyword: ActionKeywords.PARCEL,
+				},
+			});
+
 			return new Parcel(parcel);
 		} catch (error) {
 			if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -279,8 +289,9 @@ export class ParcelService {
 			const take = 50;
 			const skip = (page - 1) * take;
 			const where = this.buildWhereFilter(search, merchantId, status, fromBranchId, toBranchId);
+			const baseWhere = this.buildWhereFilter(search, merchantId, undefined, fromBranchId, toBranchId);
 
-			const [parcels, total] = await Promise.all([
+			const [parcels, total, ...statusCountResults] = await Promise.all([
 				this.prisma.parcel.findMany({
 					where,
 					skip,
@@ -289,15 +300,33 @@ export class ParcelService {
 					include: PARCEL_INCLUDE,
 				}),
 				this.prisma.parcel.count({ where }),
+				this.prisma.parcel.count({ where: baseWhere }),
+				this.prisma.parcel.count({ where: { ...baseWhere, status: ParcelStatus.IN_TRANSIT } }),
+				this.prisma.parcel.count({ where: { ...baseWhere, status: ParcelStatus.PENDING } }),
+				this.prisma.parcel.count({ where: { ...baseWhere, status: ParcelStatus.RECEIVED } }),
+				this.prisma.parcel.count({ where: { ...baseWhere, status: ParcelStatus.CANCELLED } }),
+				this.prisma.parcel.count({ where: { ...baseWhere, status: ParcelStatus.RETURNED } }),
 			]);
 
+			const [allCount, inTransitCount, pendingCount, receivedCount, cancelledCount, returnedCount] = statusCountResults;
+
+			const statusCounts = {
+				all: allCount,
+				in_transit: inTransitCount,
+				pending: pendingCount,
+				received: receivedCount,
+				cancelled: cancelledCount,
+				returned: returnedCount,
+			};
+
 			if (parcels.length === 0) {
-				return { message: 'No parcels found', data: [], meta: { total, page, lastPage: 0 } };
+				return { message: 'No parcels found', data: [], meta: { total, page, lastPage: 0 }, statusCounts };
 			}
 			return {
 				message: 'Parcels retrieved successfully',
 				data: parcels.map(p => new Parcel(p)),
 				meta: { total, page, lastPage: Math.ceil(total / take) },
+				statusCounts,
 			};
 		} catch (error) {
 			this.logger.error(`Failed to retrieve parcels: ${error.message}`, error.stack);
@@ -343,7 +372,7 @@ export class ParcelService {
 		}
 	}
 
-	async update(id: string, updateParcelDto: UpdateParcelDto) {
+	async update(id: string, updateParcelDto: UpdateParcelDto, user: { id: string; branchId: string }) {
 		try {
 			const existingParcel = await this.findOne(id);
 			const { items, ...parcelData } = updateParcelDto;
@@ -469,6 +498,16 @@ export class ParcelService {
 					return tx.parcel.findFirstOrThrow({ where: { id }, include: PARCEL_INCLUDE });
 				}, { timeout: 15000 });
 
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `Updated parcel "${parcel.trackingNumber}"`,
+						actionDetails: `Updated fields: ${Object.keys(updateParcelDto).join(', ')}`,
+						actionKeyword: ActionKeywords.PARCEL,
+					},
+				});
+
 				return new Parcel(parcel);
 			}
 
@@ -476,6 +515,16 @@ export class ParcelService {
 				where: { id },
 				data: updateData,
 				include: PARCEL_INCLUDE,
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Updated parcel "${parcel.trackingNumber}"`,
+					actionDetails: `Updated fields: ${Object.keys(updateParcelDto).join(', ')}`,
+					actionKeyword: ActionKeywords.PARCEL,
+				},
 			});
 
 			return new Parcel(parcel);
@@ -488,7 +537,7 @@ export class ParcelService {
 		}
 	}
 
-	async updateStatus(id: string, dto: UpdateParcelStatusDto) {
+	async updateStatus(id: string, dto: UpdateParcelStatusDto, user: { id: string; branchId: string }) {
 		try {
 			const parcel = await this.findOne(id);
 
@@ -548,6 +597,17 @@ export class ParcelService {
 					}
 					return tx.parcel.update({ where: { id }, data, include: PARCEL_INCLUDE });
 				});
+
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `Updated parcel "${parcel.trackingNumber}" status to ${dto.status}`,
+						actionDetails: `Previous status: ${parcel.status}, New status: ${dto.status}`,
+						actionKeyword: ActionKeywords.PARCEL,
+					},
+				});
+
 				return new Parcel(updated);
 			}
 
@@ -556,6 +616,16 @@ export class ParcelService {
 				where: { id },
 				data,
 				include: PARCEL_INCLUDE,
+			});
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Updated parcel "${parcel.trackingNumber}" status to ${dto.status}`,
+					actionDetails: `Previous status: ${parcel.status}, New status: ${dto.status}`,
+					actionKeyword: ActionKeywords.PARCEL,
+				},
 			});
 
 			return new Parcel(updated);
@@ -568,10 +638,21 @@ export class ParcelService {
 		}
 	}
 
-	async remove(id: string) {
+	async remove(id: string, user: { id: string; branchId: string }) {
 		try {
-			await this.findOne(id);
+			const parcel = await this.findOne(id);
 			await this.prisma.parcel.delete({ where: { id } });
+
+			await this.prisma.activityLogs.create({
+				data: {
+					userId: user.id,
+					branchId: user.branchId,
+					action: `Deleted parcel "${parcel.trackingNumber}"`,
+					actionDetails: `Parcel "${parcel.trackingNumber}" was permanently removed`,
+					actionKeyword: ActionKeywords.PARCEL,
+				},
+			});
+
 			return { message: 'Parcel deleted successfully' };
 		} catch (error) {
 			if (error instanceof NotFoundException) {
