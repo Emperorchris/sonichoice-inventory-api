@@ -84,7 +84,7 @@ export class InvitesService {
 				include: { branch: true },
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,

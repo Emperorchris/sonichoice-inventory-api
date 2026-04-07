@@ -126,7 +126,7 @@ export class MerchantService {
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -235,7 +235,7 @@ export class MerchantService {
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -267,7 +267,7 @@ export class MerchantService {
 			const merchant = await this.findOne(id);
 			await this.prisma.merchant.delete({ where: { id } });
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,

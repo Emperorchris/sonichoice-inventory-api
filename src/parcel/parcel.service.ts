@@ -264,7 +264,7 @@ export class ParcelService {
 				});
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -498,7 +498,7 @@ export class ParcelService {
 					return tx.parcel.findFirstOrThrow({ where: { id }, include: PARCEL_INCLUDE });
 				}, { timeout: 15000 });
 
-				await this.prisma.activityLogs.create({
+				if (user) await this.prisma.activityLogs.create({
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
@@ -517,7 +517,7 @@ export class ParcelService {
 				include: PARCEL_INCLUDE,
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -598,7 +598,7 @@ export class ParcelService {
 					return tx.parcel.update({ where: { id }, data, include: PARCEL_INCLUDE });
 				});
 
-				await this.prisma.activityLogs.create({
+				if (user) await this.prisma.activityLogs.create({
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
@@ -618,7 +618,7 @@ export class ParcelService {
 				include: PARCEL_INCLUDE,
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -643,7 +643,7 @@ export class ParcelService {
 			const parcel = await this.findOne(id);
 			await this.prisma.parcel.delete({ where: { id } });
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,

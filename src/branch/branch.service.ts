@@ -35,7 +35,7 @@ export class BranchService {
 				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -121,7 +121,7 @@ export class BranchService {
 				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -153,7 +153,7 @@ export class BranchService {
 			const branch = await this.findOne(id);
 			await this.prisma.branch.delete({ where: { id } });
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,

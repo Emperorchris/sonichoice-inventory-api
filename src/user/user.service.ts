@@ -93,7 +93,7 @@ export class UserService {
 				include: USER_INCLUDE,
 			});
 
-			await this.prisma.activityLogs.create({
+			if (currentUser) await this.prisma.activityLogs.create({
 				data: {
 					userId: currentUser.id,
 					branchId: currentUser.branchId,
@@ -116,7 +116,7 @@ export class UserService {
 			const user = await this.findOne(id);
 			await this.prisma.user.delete({ where: { id } });
 
-			await this.prisma.activityLogs.create({
+			if (currentUser) await this.prisma.activityLogs.create({
 				data: {
 					userId: currentUser.id,
 					branchId: currentUser.branchId,

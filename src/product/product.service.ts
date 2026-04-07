@@ -224,7 +224,7 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -345,7 +345,7 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			});
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
@@ -370,7 +370,7 @@ export class ProductService {
 			const product = await this.findOne(id);
 			await this.prisma.product.delete({ where: { id } });
 
-			await this.prisma.activityLogs.create({
+			if (user) await this.prisma.activityLogs.create({
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
