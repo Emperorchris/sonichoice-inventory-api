@@ -133,6 +133,8 @@ export class MerchantService {
 					action: `Created merchant "${merchant.name}"`,
 					actionDetails: `Email: ${merchant.email || 'N/A'}, Phone: ${merchant.phone || 'N/A'}`,
 					actionKeyword: ActionKeywords.MERCHANT,
+					resourceId: merchant.id,
+					resourceType: 'merchant',
 				},
 			});
 
@@ -242,6 +244,8 @@ export class MerchantService {
 					action: `Updated merchant "${merchant.name}"`,
 					actionDetails: `Updated fields: ${Object.keys(updateMerchantDto).join(', ')}`,
 					actionKeyword: ActionKeywords.MERCHANT,
+					resourceId: merchant.id,
+					resourceType: 'merchant',
 				},
 			});
 
@@ -274,6 +278,8 @@ export class MerchantService {
 					action: `Deleted merchant "${merchant.name}"`,
 					actionDetails: `Merchant "${merchant.name}" was permanently removed`,
 					actionKeyword: ActionKeywords.MERCHANT,
+					resourceId: id,
+					resourceType: 'merchant',
 				},
 			});
 

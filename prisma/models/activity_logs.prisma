@@ -20,6 +20,8 @@ model ActivityLogs {
     actionDetails String?
     actionType    String?
     actionKeyword   ActionKeywords?     @default(OTHER)
+    resourceId    String?
+    resourceType  String?
     isDeleted     Boolean   @default(false)
     deletedAt     DateTime?
     createdAt     DateTime  @default(now())

@@ -100,6 +100,8 @@ export class UserService {
 					action: `Updated user "${user.name || user.email}"`,
 					actionDetails: `Updated fields: ${Object.keys(updateUserDto).join(', ')}`,
 					actionKeyword: ActionKeywords.USER,
+					resourceId: id,
+					resourceType: 'user',
 				},
 			});
 
@@ -123,6 +125,8 @@ export class UserService {
 					action: `Deleted user "${user.name || user.email}"`,
 					actionDetails: `User "${user.name || user.email}" (${user.email}) was permanently removed`,
 					actionKeyword: ActionKeywords.USER,
+					resourceId: id,
+					resourceType: 'user',
 				},
 			});
 

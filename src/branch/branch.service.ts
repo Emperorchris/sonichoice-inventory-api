@@ -42,6 +42,8 @@ export class BranchService {
 					action: `Created branch "${branch.name}"`,
 					actionDetails: `City: ${branch.city || 'N/A'}, State: ${branch.state || 'N/A'}`,
 					actionKeyword: ActionKeywords.BRANCH,
+					resourceId: branch.id,
+					resourceType: 'branch',
 				},
 			});
 
@@ -128,6 +130,8 @@ export class BranchService {
 					action: `Updated branch "${branch.name}"`,
 					actionDetails: `Updated fields: ${Object.keys(updateBranchDto).join(', ')}`,
 					actionKeyword: ActionKeywords.BRANCH,
+					resourceId: branch.id,
+					resourceType: 'branch',
 				},
 			});
 
@@ -160,6 +164,8 @@ export class BranchService {
 					action: `Deleted branch "${branch.name}"`,
 					actionDetails: `Branch "${branch.name}" was permanently removed`,
 					actionKeyword: ActionKeywords.BRANCH,
+					resourceId: id,
+					resourceType: 'branch',
 				},
 			});
 

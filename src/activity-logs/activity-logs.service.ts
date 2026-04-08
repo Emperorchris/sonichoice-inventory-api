@@ -17,6 +17,8 @@ export class ActivityLogsService {
 		actionKeyword?: string,
 		userId?: string,
 		branchId?: string,
+		resourceId?: string,
+		resourceType?: string,
 	) {
 		const where: any = { isDeleted: false };
 
@@ -29,12 +31,11 @@ export class ActivityLogsService {
 			];
 		}
 
-		if (actionKeyword) {
-			where.actionKeyword = actionKeyword.toUpperCase();
-		}
-
+		if (actionKeyword) where.actionKeyword = actionKeyword.toUpperCase();
 		if (userId) where.userId = userId;
 		if (branchId) where.branchId = branchId;
+		if (resourceId) where.resourceId = resourceId;
+		if (resourceType) where.resourceType = resourceType.toLowerCase();
 
 		return where;
 	}
@@ -45,12 +46,14 @@ export class ActivityLogsService {
 		actionKeyword?: string,
 		userId?: string,
 		branchId?: string,
+		resourceId?: string,
+		resourceType?: string,
 	) {
 		try {
 			const take = 50;
 			const skip = (page - 1) * take;
-			const where = this.buildWhereFilter(search, actionKeyword, userId, branchId);
-			const baseWhere = this.buildWhereFilter(search, undefined, userId, branchId);
+			const where = this.buildWhereFilter(search, actionKeyword, userId, branchId, resourceId, resourceType);
+			const baseWhere = this.buildWhereFilter(search, undefined, userId, branchId, resourceId, resourceType);
 
 			const [logs, total, ...keywordCountResults] = await Promise.all([
 				this.prisma.activityLogs.findMany({

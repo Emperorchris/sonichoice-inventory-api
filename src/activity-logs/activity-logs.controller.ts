@@ -12,6 +12,8 @@ export class ActivityLogsController {
 		@Query('actionKeyword') actionKeyword?: string,
 		@Query('userId') userId?: string,
 		@Query('branchId') branchId?: string,
+		@Query('resourceId') resourceId?: string,
+		@Query('resourceType') resourceType?: string,
 	) {
 		return this.activityLogsService.findAll(
 			Number(page) || 1,
@@ -19,6 +21,8 @@ export class ActivityLogsController {
 			actionKeyword,
 			userId,
 			branchId,
+			resourceId,
+			resourceType,
 		);
 	}
 
@@ -28,12 +32,17 @@ export class ActivityLogsController {
 		@Query('page') page?: string,
 		@Query('search') search?: string,
 		@Query('actionKeyword') actionKeyword?: string,
+		@Query('resourceId') resourceId?: string,
+		@Query('resourceType') resourceType?: string,
 	) {
 		return this.activityLogsService.findAll(
 			Number(page) || 1,
 			search,
 			actionKeyword,
 			req.user.id,
+			undefined,
+			resourceId,
+			resourceType,
 		);
 	}
 

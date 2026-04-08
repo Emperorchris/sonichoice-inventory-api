@@ -231,6 +231,8 @@ export class ProductService {
 					action: `Created product "${product.name}"`,
 					actionDetails: `Tracking ID: ${product.trackingId}`,
 					actionKeyword: ActionKeywords.PRODUCT,
+					resourceId: product.id,
+					resourceType: 'product',
 				},
 			});
 
@@ -352,6 +354,8 @@ export class ProductService {
 					action: `Updated product "${product.name}"`,
 					actionDetails: `Updated fields: ${Object.keys(updateProductDto).join(', ')}`,
 					actionKeyword: ActionKeywords.PRODUCT,
+					resourceId: product.id,
+					resourceType: 'product',
 				},
 			});
 
@@ -377,6 +381,8 @@ export class ProductService {
 					action: `Deleted product "${product.name}"`,
 					actionDetails: `Product "${product.name}" (${product.trackingId}) was permanently removed`,
 					actionKeyword: ActionKeywords.PRODUCT,
+					resourceId: id,
+					resourceType: 'product',
 				},
 			});
 

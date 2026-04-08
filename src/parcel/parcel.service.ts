@@ -271,6 +271,8 @@ export class ParcelService {
 					action: `Created parcel "${parcel.trackingNumber}"`,
 					actionDetails: `From: ${fromBranch.name}, To: ${toBranch.name}, Items: ${items.length}`,
 					actionKeyword: ActionKeywords.PARCEL,
+					resourceId: parcel.id,
+					resourceType: 'parcel',
 				},
 			});
 
@@ -524,6 +526,8 @@ export class ParcelService {
 					action: `Updated parcel "${parcel.trackingNumber}"`,
 					actionDetails: `Updated fields: ${Object.keys(updateParcelDto).join(', ')}`,
 					actionKeyword: ActionKeywords.PARCEL,
+					resourceId: id,
+					resourceType: 'parcel',
 				},
 			});
 
@@ -625,6 +629,8 @@ export class ParcelService {
 					action: `Updated parcel "${parcel.trackingNumber}" status to ${dto.status}`,
 					actionDetails: `Previous status: ${parcel.status}, New status: ${dto.status}`,
 					actionKeyword: ActionKeywords.PARCEL,
+					resourceId: id,
+					resourceType: 'parcel',
 				},
 			});
 
@@ -650,6 +656,8 @@ export class ParcelService {
 					action: `Deleted parcel "${parcel.trackingNumber}"`,
 					actionDetails: `Parcel "${parcel.trackingNumber}" was permanently removed`,
 					actionKeyword: ActionKeywords.PARCEL,
+					resourceId: id,
+					resourceType: 'parcel',
 				},
 			});
 
