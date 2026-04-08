@@ -1,8 +1,6 @@
 import { Controller, Get, Query, Param, Req } from '@nestjs/common';
 import { ActivityLogsService } from './activity-logs.service';
-import { IsPublic } from 'decorator/isPublic.decorator';
 
-@IsPublic()
 @Controller('activity-logs')
 export class ActivityLogsController {
 	constructor(private readonly activityLogsService: ActivityLogsService) {}
