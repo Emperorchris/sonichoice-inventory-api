@@ -94,7 +94,7 @@ export class ProductService {
 						p.trackingId, p.name,
 						(p as any).merchant?.name || '-',
 						'-', '0', '-',
-						new Date(p.dateReceived).toLocaleDateString(),
+						p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '-',
 					];
 					row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
 					y += 18;
@@ -108,7 +108,7 @@ export class ProductService {
 							stock.branch?.name || '-',
 							String(stock.quantity),
 							String(stock.lowStockAlert),
-							new Date(p.dateReceived).toLocaleDateString(),
+							p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '-',
 						];
 						row.forEach((cell, i) => { doc.text(cell, x, y, { width: colWidths[i] }); x += colWidths[i]; });
 						y += 18;
@@ -150,7 +150,7 @@ export class ProductService {
 					description: p.description || '',
 					merchant: (p as any).merchant?.name || '-',
 					branch: '-', quantity: 0, lowStockAlert: '-',
-					dateReceived: new Date(p.dateReceived).toLocaleDateString(),
+					dateReceived: p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '-',
 					additionalInfo: p.additionalInfo || '',
 				});
 			} else {
@@ -162,7 +162,7 @@ export class ProductService {
 						branch: stock.branch?.name || '-',
 						quantity: stock.quantity,
 						lowStockAlert: stock.lowStockAlert,
-						dateReceived: new Date(p.dateReceived).toLocaleDateString(),
+						dateReceived: p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '-',
 						additionalInfo: p.additionalInfo || '',
 					});
 				}
@@ -210,6 +210,7 @@ export class ProductService {
 			const product = await this.prisma.product.create({
 				data: {
 					...productData,
+					dateReceived: productData.dateReceived ?? null,
 					trackingId,
 					stocks: branches?.length
 						? {

@@ -8,13 +8,15 @@ export class CreateMerchantDto {
 
     @IsOptional()
     @IsEmail({}, { message: "Please provide a valid email" })
-    email: string;
+    email?: string;
 
+    @IsOptional()
     @IsString({ message: "Phone number must be a string" })
-    phone: string;
+    phone?: string;
 
+    @IsOptional()
     @IsString({ message: "Color must be a string" })
-    color: string
+    color?: string
 
     @IsEnum(MerchantStatus, { message: "Status must be either ACTIVE or INACTIVE" })
     status: MerchantStatus;

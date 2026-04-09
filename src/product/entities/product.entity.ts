@@ -28,7 +28,7 @@ export class Product {
     name: string;
     description?: string | null;
     stocks?: ProductStock[];
-    dateReceived: Date;
+    dateReceived: Date | null;
     additionalInfo?: string | null;
     createdAt: Date;
     updatedAt: Date;
