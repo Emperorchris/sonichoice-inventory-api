@@ -288,10 +288,7 @@ export class AuthService {
 			const frontendUrl = this.appConfiguration.frontendUrl;
 			const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-			const isPasswordResetEmailSent = await this.mailerService.sendPasswordResetEmail(user.name ?? '', user.email, resetLink);
-			if (!isPasswordResetEmailSent) {
-				throw new InternalServerErrorException('Failed to send password reset email');
-			}
+			await this.mailerService.sendPasswordResetEmail(user.name ?? '', user.email, resetLink);
 
 			await this.prismaService.activityLogs.create({
 				data: {
