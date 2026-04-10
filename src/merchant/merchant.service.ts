@@ -14,6 +14,20 @@ import { Prisma } from 'generated/prisma/client';
 import { ActionKeywords } from 'generated/prisma/enums';
 import { Merchant } from './entities/merchant.entity';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
+function formatChanges(oldData: Record<string, any>, newData: Record<string, any>): string {
+	const changes: string[] = [];
+	for (const key of Object.keys(newData)) {
+		const oldVal = oldData[key] ?? 'N/A';
+		const newVal = newData[key] ?? 'N/A';
+		if (String(oldVal) !== String(newVal)) {
+			changes.push(`${key}: "${oldVal}" -> "${newVal}"`);
+		}
+	}
+	return changes.length ? changes.join(', ') : 'No field changes';
+}
+
 @Injectable()
 export class MerchantService {
 	private readonly logger = new Logger(MerchantService.name);
@@ -110,7 +124,7 @@ export class MerchantService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createMerchantDto: CreateMerchantDto, user: { id: string; branchId: string }) {
+	async create(createMerchantDto: CreateMerchantDto, user: ActionUser) {
 		try {
 			if (createMerchantDto.email) {
 				const existing = await this.prisma.merchant.findFirst({
@@ -130,7 +144,7 @@ export class MerchantService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Created merchant "${merchant.name}"`,
+					action: `${user.name || user.email} created merchant "${merchant.name}"`,
 					actionDetails: `Email: ${merchant.email || 'N/A'}, Phone: ${merchant.phone || 'N/A'}`,
 					actionKeyword: ActionKeywords.MERCHANT,
 					resourceId: merchant.id,
@@ -218,9 +232,9 @@ export class MerchantService {
 		}
 	}
 
-	async update(id: string, updateMerchantDto: UpdateMerchantDto, user: { id: string; branchId: string }) {
+	async update(id: string, updateMerchantDto: UpdateMerchantDto, user: ActionUser) {
 		try {
-			await this.findOne(id);
+			const oldMerchant = await this.findOne(id);
 
 			if (updateMerchantDto.email) {
 				const existing = await this.prisma.merchant.findFirst({
@@ -237,17 +251,21 @@ export class MerchantService {
 				include: { products: { include: { stocks: { include: { branch: true } } } } },
 			});
 
-			if (user) await this.prisma.activityLogs.create({
-				data: {
-					userId: user.id,
-					branchId: user.branchId,
-					action: `Updated merchant "${merchant.name}"`,
-					actionDetails: `Updated fields: ${Object.keys(updateMerchantDto).join(', ')}`,
-					actionKeyword: ActionKeywords.MERCHANT,
-					resourceId: merchant.id,
-					resourceType: 'merchant',
-				},
-			});
+			if (user) {
+				const oldData: Record<string, any> = { name: oldMerchant.name, email: oldMerchant.email, phone: oldMerchant.phone, color: oldMerchant.color, status: oldMerchant.status };
+				const details = formatChanges(oldData, updateMerchantDto);
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `${user.name || user.email} updated merchant "${merchant.name}"`,
+						actionDetails: details,
+						actionKeyword: ActionKeywords.MERCHANT,
+						resourceId: merchant.id,
+						resourceType: 'merchant',
+					},
+				});
+			}
 
 			return new Merchant(merchant);
 		} catch (error) {
@@ -266,7 +284,7 @@ export class MerchantService {
 		}
 	}
 
-	async remove(id: string, user: { id: string; branchId: string }) {
+	async remove(id: string, user: ActionUser) {
 		try {
 			const merchant = await this.findOne(id);
 			await this.prisma.merchant.delete({ where: { id } });
@@ -275,7 +293,7 @@ export class MerchantService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Deleted merchant "${merchant.name}"`,
+					action: `${user.name || user.email} deleted merchant "${merchant.name}"`,
 					actionDetails: `Merchant "${merchant.name}" was permanently removed`,
 					actionKeyword: ActionKeywords.MERCHANT,
 					resourceId: id,

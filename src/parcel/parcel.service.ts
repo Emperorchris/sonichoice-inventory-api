@@ -14,6 +14,21 @@ import { UpdateParcelDto, UpdateParcelStatusDto } from './dto/update-parcel.dto'
 import { Parcel } from './entities/parcel.entity';
 import { ActionKeywords, ParcelStatus } from 'generated/prisma/enums';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
+function formatChanges(oldData: Record<string, any>, newData: Record<string, any>): string {
+	const changes: string[] = [];
+	for (const key of Object.keys(newData)) {
+		if (key === 'items') continue;
+		const oldVal = oldData[key] ?? 'N/A';
+		const newVal = newData[key] ?? 'N/A';
+		if (String(oldVal) !== String(newVal)) {
+			changes.push(`${key}: "${oldVal}" -> "${newVal}"`);
+		}
+	}
+	return changes.length ? changes.join(', ') : 'No field changes';
+}
+
 const PARCEL_INCLUDE = {
 	fromBranch: true,
 	toBranch: true,
@@ -151,7 +166,7 @@ export class ParcelService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createParcelDto: CreateParcelDto, user: { id: string; branchId: string }) {
+	async create(createParcelDto: CreateParcelDto, user: ActionUser) {
 		try {
 			const { items, ...parcelData } = createParcelDto;
 
@@ -268,7 +283,7 @@ export class ParcelService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Created parcel "${parcel.trackingNumber}"`,
+					action: `${user.name || user.email} created parcel "${parcel.trackingNumber}"`,
 					actionDetails: `From: ${fromBranch.name}, To: ${toBranch.name}, Items: ${items.length}`,
 					actionKeyword: ActionKeywords.PARCEL,
 					resourceId: parcel.id,
@@ -374,7 +389,7 @@ export class ParcelService {
 		}
 	}
 
-	async update(id: string, updateParcelDto: UpdateParcelDto, user: { id: string; branchId: string }) {
+	async update(id: string, updateParcelDto: UpdateParcelDto, user: ActionUser) {
 		try {
 			const existingParcel = await this.findOne(id);
 			const { items, ...parcelData } = updateParcelDto;
@@ -500,15 +515,21 @@ export class ParcelService {
 					return tx.parcel.findFirstOrThrow({ where: { id }, include: PARCEL_INCLUDE });
 				}, { timeout: 15000 });
 
-				if (user) await this.prisma.activityLogs.create({
-					data: {
-						userId: user.id,
-						branchId: user.branchId,
-						action: `Updated parcel "${parcel.trackingNumber}"`,
-						actionDetails: `Updated fields: ${Object.keys(updateParcelDto).join(', ')}`,
-						actionKeyword: ActionKeywords.PARCEL,
-					},
-				});
+				if (user) {
+					const oldData = { fromBranchId: existingParcel.fromBranchId, toBranchId: existingParcel.toBranchId, size: existingParcel.size, additionalInfo: existingParcel.additionalInfo };
+					const details = formatChanges(oldData, parcelData);
+					await this.prisma.activityLogs.create({
+						data: {
+							userId: user.id,
+							branchId: user.branchId,
+							action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}"`,
+							actionDetails: items ? `${details}, items were updated` : details,
+							actionKeyword: ActionKeywords.PARCEL,
+							resourceId: id,
+							resourceType: 'parcel',
+						},
+					});
+				}
 
 				return new Parcel(parcel);
 			}
@@ -519,17 +540,21 @@ export class ParcelService {
 				include: PARCEL_INCLUDE,
 			});
 
-			if (user) await this.prisma.activityLogs.create({
-				data: {
-					userId: user.id,
-					branchId: user.branchId,
-					action: `Updated parcel "${parcel.trackingNumber}"`,
-					actionDetails: `Updated fields: ${Object.keys(updateParcelDto).join(', ')}`,
-					actionKeyword: ActionKeywords.PARCEL,
-					resourceId: id,
-					resourceType: 'parcel',
-				},
-			});
+			if (user) {
+				const oldData = { fromBranchId: existingParcel.fromBranchId, toBranchId: existingParcel.toBranchId, size: existingParcel.size, additionalInfo: existingParcel.additionalInfo };
+				const details = formatChanges(oldData, parcelData);
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}"`,
+						actionDetails: details,
+						actionKeyword: ActionKeywords.PARCEL,
+						resourceId: id,
+						resourceType: 'parcel',
+					},
+				});
+			}
 
 			return new Parcel(parcel);
 		} catch (error) {
@@ -541,7 +566,7 @@ export class ParcelService {
 		}
 	}
 
-	async updateStatus(id: string, dto: UpdateParcelStatusDto, user: { id: string; branchId: string }) {
+	async updateStatus(id: string, dto: UpdateParcelStatusDto, user: ActionUser) {
 		try {
 			const parcel = await this.findOne(id);
 
@@ -626,8 +651,8 @@ export class ParcelService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Updated parcel "${parcel.trackingNumber}" status to ${dto.status}`,
-					actionDetails: `Previous status: ${parcel.status}, New status: ${dto.status}`,
+					action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}" status from ${parcel.status} to ${dto.status}`,
+					actionDetails: `status: "${parcel.status}" -> "${dto.status}"`,
 					actionKeyword: ActionKeywords.PARCEL,
 					resourceId: id,
 					resourceType: 'parcel',
@@ -644,7 +669,7 @@ export class ParcelService {
 		}
 	}
 
-	async remove(id: string, user: { id: string; branchId: string }) {
+	async remove(id: string, user: ActionUser) {
 		try {
 			const parcel = await this.findOne(id);
 			await this.prisma.parcel.delete({ where: { id } });
@@ -653,7 +678,7 @@ export class ParcelService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Deleted parcel "${parcel.trackingNumber}"`,
+					action: `${user.name || user.email} deleted parcel "${parcel.trackingNumber}"`,
 					actionDetails: `Parcel "${parcel.trackingNumber}" was permanently removed`,
 					actionKeyword: ActionKeywords.PARCEL,
 					resourceId: id,

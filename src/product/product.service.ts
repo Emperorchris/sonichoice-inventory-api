@@ -14,6 +14,21 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ActionKeywords } from 'generated/prisma/enums';
 import { Product } from './entities/product.entity';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
+function formatChanges(oldData: Record<string, any>, newData: Record<string, any>): string {
+	const changes: string[] = [];
+	for (const key of Object.keys(newData)) {
+		if (key === 'branches') continue;
+		const oldVal = oldData[key] ?? 'N/A';
+		const newVal = newData[key] ?? 'N/A';
+		if (String(oldVal) !== String(newVal)) {
+			changes.push(`${key}: "${oldVal}" -> "${newVal}"`);
+		}
+	}
+	return changes.length ? changes.join(', ') : 'No field changes';
+}
+
 const PRODUCT_INCLUDE = {
 	merchant: true,
 	stocks: { include: { branch: true } },
@@ -172,7 +187,7 @@ export class ProductService {
 		return Buffer.from(await workbook.xlsx.writeBuffer());
 	}
 
-	async create(createProductDto: CreateProductDto, user: { id: string; branchId: string }) {
+	async create(createProductDto: CreateProductDto, user: ActionUser) {
 		try {
 			const { branches, ...productData } = createProductDto;
 
@@ -229,8 +244,8 @@ export class ProductService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Created product "${product.name}"`,
-					actionDetails: `Tracking ID: ${product.trackingId}`,
+					action: `${user.name || user.email} created product "${product.name}"`,
+					actionDetails: `Tracking ID: ${product.trackingId}, Merchant: ${(product as any).merchant?.name || 'N/A'}`,
 					actionKeyword: ActionKeywords.PRODUCT,
 					resourceId: product.id,
 					resourceType: 'product',
@@ -296,9 +311,9 @@ export class ProductService {
 		}
 	}
 
-	async update(id: string, updateProductDto: UpdateProductDto, user: { id: string; branchId: string }) {
+	async update(id: string, updateProductDto: UpdateProductDto, user: ActionUser) {
 		try {
-			await this.findOne(id);
+			const oldProduct = await this.findOne(id);
 
 			const { branches, ...productData } = updateProductDto;
 
@@ -348,17 +363,28 @@ export class ProductService {
 				include: PRODUCT_INCLUDE,
 			});
 
-			if (user) await this.prisma.activityLogs.create({
-				data: {
-					userId: user.id,
-					branchId: user.branchId,
-					action: `Updated product "${product.name}"`,
-					actionDetails: `Updated fields: ${Object.keys(updateProductDto).join(', ')}`,
-					actionKeyword: ActionKeywords.PRODUCT,
-					resourceId: product.id,
-					resourceType: 'product',
-				},
-			});
+			if (user) {
+				const { branches: _, ...fieldChanges } = updateProductDto;
+				const oldData: Record<string, any> = {
+					name: oldProduct.name,
+					description: oldProduct.description,
+					merchantId: oldProduct.merchantId,
+					dateReceived: oldProduct.dateReceived,
+					additionalInfo: oldProduct.additionalInfo,
+				};
+				const details = formatChanges(oldData, fieldChanges);
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `${user.name || user.email} updated product "${product.name}"`,
+						actionDetails: details,
+						actionKeyword: ActionKeywords.PRODUCT,
+						resourceId: product.id,
+						resourceType: 'product',
+					},
+				});
+			}
 
 			return new Product(product);
 		} catch (error) {
@@ -370,7 +396,7 @@ export class ProductService {
 		}
 	}
 
-	async remove(id: string, user: { id: string; branchId: string }) {
+	async remove(id: string, user: ActionUser) {
 		try {
 			const product = await this.findOne(id);
 			await this.prisma.product.delete({ where: { id } });
@@ -379,7 +405,7 @@ export class ProductService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Deleted product "${product.name}"`,
+					action: `${user.name || user.email} deleted product "${product.name}"`,
 					actionDetails: `Product "${product.name}" (${product.trackingId}) was permanently removed`,
 					actionKeyword: ActionKeywords.PRODUCT,
 					resourceId: id,

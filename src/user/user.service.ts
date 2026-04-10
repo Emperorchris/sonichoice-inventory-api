@@ -9,6 +9,20 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ActionKeywords } from 'generated/prisma/enums';
 import { User } from './entities/user.entity';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
+function formatChanges(oldData: Record<string, any>, newData: Record<string, any>): string {
+	const changes: string[] = [];
+	for (const key of Object.keys(newData)) {
+		const oldVal = oldData[key] ?? 'N/A';
+		const newVal = newData[key] ?? 'N/A';
+		if (String(oldVal) !== String(newVal)) {
+			changes.push(`${key}: "${oldVal}" -> "${newVal}"`);
+		}
+	}
+	return changes.length ? changes.join(', ') : 'No field changes';
+}
+
 const USER_INCLUDE = { branch: true } as const;
 
 @Injectable()
@@ -74,9 +88,9 @@ export class UserService {
 		return this.findOne(userId);
 	}
 
-	async update(id: string, updateUserDto: UpdateUserDto, currentUser: { id: string; branchId: string }) {
+	async update(id: string, updateUserDto: UpdateUserDto, currentUser: ActionUser) {
 		try {
-			await this.findOne(id);
+			const oldUser = await this.findOne(id);
 
 			if (updateUserDto.branchId) {
 				const branch = await this.prisma.branch.findFirst({
@@ -93,17 +107,21 @@ export class UserService {
 				include: USER_INCLUDE,
 			});
 
-			if (currentUser) await this.prisma.activityLogs.create({
-				data: {
-					userId: currentUser.id,
-					branchId: currentUser.branchId,
-					action: `Updated user "${user.name || user.email}"`,
-					actionDetails: `Updated fields: ${Object.keys(updateUserDto).join(', ')}`,
-					actionKeyword: ActionKeywords.USER,
-					resourceId: id,
-					resourceType: 'user',
-				},
-			});
+			if (currentUser) {
+				const oldData: Record<string, any> = { name: oldUser.name, email: oldUser.email, phone: oldUser.phone, role: oldUser.role, branchId: oldUser.branchId };
+				const details = formatChanges(oldData, updateUserDto);
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: currentUser.id,
+						branchId: currentUser.branchId,
+						action: `${currentUser.name || currentUser.email} updated user "${user.name || user.email}"`,
+						actionDetails: details,
+						actionKeyword: ActionKeywords.USER,
+						resourceId: id,
+						resourceType: 'user',
+					},
+				});
+			}
 
 			return new User(user);
 		} catch (error) {
@@ -113,7 +131,7 @@ export class UserService {
 		}
 	}
 
-	async remove(id: string, currentUser: { id: string; branchId: string }) {
+	async remove(id: string, currentUser: ActionUser) {
 		try {
 			const user = await this.findOne(id);
 			await this.prisma.user.delete({ where: { id } });
@@ -122,7 +140,7 @@ export class UserService {
 				data: {
 					userId: currentUser.id,
 					branchId: currentUser.branchId,
-					action: `Deleted user "${user.name || user.email}"`,
+					action: `${currentUser.name || currentUser.email} deleted user "${user.name || user.email}"`,
 					actionDetails: `User "${user.name || user.email}" (${user.email}) was permanently removed`,
 					actionKeyword: ActionKeywords.USER,
 					resourceId: id,

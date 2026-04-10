@@ -15,6 +15,8 @@ import { AuthService } from 'src/auth/auth.service';
 import { Invite } from './entities/invite.entity';
 import { User } from 'src/user/entities/user.entity';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
 @Injectable()
 export class InvitesService {
 	private readonly logger = new Logger(InvitesService.name);
@@ -31,7 +33,7 @@ export class InvitesService {
 		private readonly authService: AuthService,
 	) { }
 
-	async sendInvite(createInviteDto: CreateInviteDto, user: { id: string; branchId: string }) {
+	async sendInvite(createInviteDto: CreateInviteDto, user: ActionUser) {
 		try {
 			const frontendUrl = this.appConfiguration.frontendUrl || 'http://localhost:3000';
 
@@ -88,7 +90,7 @@ export class InvitesService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Sent invite to "${createInviteDto.email}"`,
+					action: `${user.name || user.email} sent invite to "${createInviteDto.email}"`,
 					actionDetails: `Branch: ${branchExists.name}, Role: ${createInviteDto.role ?? 'USER'}`,
 					actionKeyword: ActionKeywords.USER,
 				},

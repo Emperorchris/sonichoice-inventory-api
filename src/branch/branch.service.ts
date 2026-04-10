@@ -12,6 +12,19 @@ import { Prisma } from 'generated/prisma/client';
 import { ActionKeywords, ParcelStatus } from 'generated/prisma/enums';
 import { Branch } from './entities/branch.entity';
 
+type ActionUser = { id: string; name?: string | null; email: string; branchId: string };
+
+function formatChanges(oldData: Record<string, any>, newData: Record<string, any>): string {
+	const changes: string[] = [];
+	for (const key of Object.keys(newData)) {
+		const oldVal = oldData[key] ?? 'N/A';
+		const newVal = newData[key] ?? 'N/A';
+		if (String(oldVal) !== String(newVal)) {
+			changes.push(`${key}: "${oldVal}" -> "${newVal}"`);
+		}
+	}
+	return changes.length ? changes.join(', ') : 'No field changes';
+}
 
 @Injectable()
 export class BranchService {
@@ -19,7 +32,7 @@ export class BranchService {
 
 	constructor(private readonly prisma: PrismaService) { }
 
-	async create(createBranchDto: CreateBranchDto, user: { id: string; branchId: string }) {
+	async create(createBranchDto: CreateBranchDto, user: ActionUser) {
 		try {
 			if (createBranchDto.email) {
 				const existingBranch = await this.prisma.branch.findFirst({
@@ -39,7 +52,7 @@ export class BranchService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Created branch "${branch.name}"`,
+					action: `${user.name || user.email} created branch "${branch.name}"`,
 					actionDetails: `City: ${branch.city || 'N/A'}, State: ${branch.state || 'N/A'}`,
 					actionKeyword: ActionKeywords.BRANCH,
 					resourceId: branch.id,
@@ -104,9 +117,9 @@ export class BranchService {
 		}
 	}
 
-	async update(id: string, updateBranchDto: UpdateBranchDto, user: { id: string; branchId: string }) {
+	async update(id: string, updateBranchDto: UpdateBranchDto, user: ActionUser) {
 		try {
-			await this.findOne(id);
+			const oldBranch = await this.findOne(id);
 
 			if (updateBranchDto.email) {
 				const existingBranch = await this.prisma.branch.findFirst({
@@ -123,17 +136,21 @@ export class BranchService {
 				include: { users: true, productStocks: { include: { product: { include: { merchant: true } } } }, invites: true, _count: { select: { productStocks: true, parcelsFrom: { where: { status: ParcelStatus.IN_TRANSIT } }, parcelsTo: { where: { status: ParcelStatus.RECEIVED } } } } },
 			});
 
-			if (user) await this.prisma.activityLogs.create({
-				data: {
-					userId: user.id,
-					branchId: user.branchId,
-					action: `Updated branch "${branch.name}"`,
-					actionDetails: `Updated fields: ${Object.keys(updateBranchDto).join(', ')}`,
-					actionKeyword: ActionKeywords.BRANCH,
-					resourceId: branch.id,
-					resourceType: 'branch',
-				},
-			});
+			if (user) {
+				const oldData: Record<string, any> = { name: oldBranch.name, address: oldBranch.address, city: oldBranch.city, state: oldBranch.state, zip: oldBranch.zip, country: oldBranch.country, phone: oldBranch.phone, email: oldBranch.email };
+				const details = formatChanges(oldData, updateBranchDto);
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `${user.name || user.email} updated branch "${branch.name}"`,
+						actionDetails: details,
+						actionKeyword: ActionKeywords.BRANCH,
+						resourceId: branch.id,
+						resourceType: 'branch',
+					},
+				});
+			}
 
 			return new Branch(branch);
 		} catch (error) {
@@ -152,7 +169,7 @@ export class BranchService {
 		}
 	}
 
-	async remove(id: string, user: { id: string; branchId: string }) {
+	async remove(id: string, user: ActionUser) {
 		try {
 			const branch = await this.findOne(id);
 			await this.prisma.branch.delete({ where: { id } });
@@ -161,7 +178,7 @@ export class BranchService {
 				data: {
 					userId: user.id,
 					branchId: user.branchId,
-					action: `Deleted branch "${branch.name}"`,
+					action: `${user.name || user.email} deleted branch "${branch.name}"`,
 					actionDetails: `Branch "${branch.name}" was permanently removed`,
 					actionKeyword: ActionKeywords.BRANCH,
 					resourceId: id,
