@@ -377,7 +377,7 @@ export class ProductService {
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
-						action: `${user.name || user.email} updated product "${product.name}"`,
+						action: `${user.name || user.email} updated product "${product.name}". Details: ${details}`,
 						actionDetails: details,
 						actionKeyword: ActionKeywords.PRODUCT,
 						resourceId: product.id,

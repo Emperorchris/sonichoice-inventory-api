@@ -258,7 +258,7 @@ export class MerchantService {
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
-						action: `${user.name || user.email} updated merchant "${merchant.name}"`,
+						action: `${user.name || user.email} updated merchant "${merchant.name}". Details: ${details}`,
 						actionDetails: details,
 						actionKeyword: ActionKeywords.MERCHANT,
 						resourceId: merchant.id,

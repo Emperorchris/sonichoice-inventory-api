@@ -114,7 +114,7 @@ export class UserService {
 					data: {
 						userId: currentUser.id,
 						branchId: currentUser.branchId,
-						action: `${currentUser.name || currentUser.email} updated user "${user.name || user.email}"`,
+						action: `${currentUser.name || currentUser.email} updated user "${user.name || user.email}". Details: ${details}`,
 						actionDetails: details,
 						actionKeyword: ActionKeywords.USER,
 						resourceId: id,

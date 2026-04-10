@@ -522,7 +522,7 @@ export class ParcelService {
 						data: {
 							userId: user.id,
 							branchId: user.branchId,
-							action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}"`,
+							action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}". Details: ${items ? `${details}, items were updated` : details}`,
 							actionDetails: items ? `${details}, items were updated` : details,
 							actionKeyword: ActionKeywords.PARCEL,
 							resourceId: id,
@@ -547,7 +547,7 @@ export class ParcelService {
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
-						action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}"`,
+						action: `${user.name || user.email} updated parcel "${parcel.trackingNumber}". Details: ${details}`,
 						actionDetails: details,
 						actionKeyword: ActionKeywords.PARCEL,
 						resourceId: id,

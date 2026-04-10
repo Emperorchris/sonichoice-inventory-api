@@ -143,7 +143,7 @@ export class BranchService {
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
-						action: `${user.name || user.email} updated branch "${branch.name}"`,
+						action: `${user.name || user.email} updated branch "${branch.name}". Details: ${details}`,
 						actionDetails: details,
 						actionKeyword: ActionKeywords.BRANCH,
 						resourceId: branch.id,
