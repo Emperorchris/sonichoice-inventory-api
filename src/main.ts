@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { JwtAuthGuard } from 'guards/jwt-auth.guard';
 import { RolesGuard } from 'guards/roles.guard';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
@@ -18,7 +19,17 @@ async function bootstrap() {
 		forbidNonWhitelisted: true,
 		transform: true,
 	}));
-	
+
+	const swaggerConfig = new DocumentBuilder()
+		.setTitle('Sonichoice Inventory API')
+		.setDescription('API documentation for the Sonichoice Inventory Management System')
+		.setVersion('1.0')
+		.addBearerAuth()
+		.build();
+
+	const document = SwaggerModule.createDocument(app, swaggerConfig);
+	SwaggerModule.setup('api/docs', app, document);
+
 	app.useGlobalGuards(jwtAuthGuard, rolesGuard);
 	const port = process.env.PORT ?? 3000;
 	await app.listen(port, '0.0.0.0');
