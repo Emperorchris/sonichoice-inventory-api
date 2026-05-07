@@ -58,3 +58,4 @@ jobs:
             **/tsconfig.json
             **/*.md
             **/.DS_Store
+            **/node_modules/**
