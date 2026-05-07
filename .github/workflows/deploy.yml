@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Namecheap VPS via FTP
+    name: Deploy to Namecheap Shared Hosting via FTPS
     runs-on: ubuntu-latest
 
     steps:
@@ -39,14 +39,15 @@ jobs:
           test -n "${{ secrets.FTP_PASSWORD }}" || (echo "Missing FTP_PASSWORD" && exit 1)
           test -n "${{ secrets.FTP_PORT }}" || (echo "Missing FTP_PORT" && exit 1)
 
-      - name: Upload via FTP
+      - name: Upload via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASSWORD }}
           port: ${{ secrets.FTP_PORT }}
-          # server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          protocol: ftps
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
           local-dir: ./
           exclude: |
             **/.git*
@@ -57,5 +58,3 @@ jobs:
             **/tsconfig.json
             **/*.md
             **/.DS_Store
-            **/node_modules/**
-
