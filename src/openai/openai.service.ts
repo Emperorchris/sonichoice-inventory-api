@@ -13,99 +13,76 @@ export class OpenAIService {
 		});
 	}
 
-	async analyzeSpreadsheetData(
+	/**
+	 * AI only handles the LIGHTWEIGHT tasks:
+	 * 1. Column mapping (headers → system fields)
+	 * 2. Merchant fuzzy matching (spreadsheet names → DB merchants)
+	 * 3. Branch fuzzy matching (spreadsheet names → DB branches)
+	 *
+	 * Row-by-row processing and duplicate detection is done in code — NOT by AI.
+	 */
+	async analyzeSpreadsheetStructure(
 		headers: string[],
-		rows: Record<string, any>[],
+		sampleRows: Record<string, any>[],
+		uniqueMerchantNames: string[],
+		uniqueBranchNames: string[],
 		existingMerchants: { id: string; name: string }[],
 		existingBranches: { id: string; name: string }[],
-		existingProducts: { name: string; merchantId: string }[],
 	) {
-		const prompt = `You are an AI assistant for an inventory management system. Analyze the following spreadsheet data and return a structured JSON response.
+		const prompt = `You are an AI assistant for an inventory management system. Analyze the spreadsheet structure and match entities. Return a structured JSON response.
 
-## YOUR TASKS:
+## TASK 1: COLUMN MAPPING
+Map these spreadsheet column headers to system fields. Analyze header names intelligently — they may use any naming convention.
 
-### 1. COLUMN MAPPING
-Map the spreadsheet column headers to these system fields:
-- "product_name" (REQUIRED) — the product/item name
-- "merchant_name" — the merchant/supplier/vendor name
-- "branch_name" — the branch/store/location name
-- "quantity" — stock quantity/count/qty
-- "description" — product description/details
-- "date_received" — date received/added
-- "additional_info" — any extra info/notes/remarks
-- "low_stock_alert" — low stock threshold/alert level
-
-Detect the correct mapping by analyzing column header names intelligently. Headers may use different naming conventions (e.g., "Product", "Item Name", "product_name", "Merchant Name", "Supplier", "Vendor", etc.)
-
-### 2. MERCHANT MATCHING
-For each unique merchant name found in the spreadsheet, find the best matching merchant from the existing database list. Use fuzzy matching — names may have slight differences (e.g., "Daggo/Sonichoice" vs "Daggo Sonichoice", "E-Commart Enugu" vs "E-commart"). If no close match exists, mark it as "NEW".
-
-### 3. BRANCH MATCHING
-Same as merchant matching — match branch names from spreadsheet to existing branches in DB.
-
-### 4. DUPLICATE DETECTION
-Check each product row against the existing products list. A product is a duplicate if it has the SAME name AND belongs to the SAME merchant. Flag duplicates.
-
-## INPUT DATA:
+System fields to map to:
+- "product_name" (REQUIRED) — the product/item name column
+- "merchant_name" — the merchant/supplier/vendor column
+- "branch_name" — the branch/store/location column
+- "quantity" — stock quantity/count/qty column
+- "description" — product description/details column
+- "date_received" — date received/added column
+- "additional_info" — any extra info/notes/remarks column
+- "low_stock_alert" — low stock threshold/alert level column
 
 **Spreadsheet Headers:** ${JSON.stringify(headers)}
 
-**Spreadsheet Rows (first 100 shown):**
-${JSON.stringify(rows.slice(0, 100))}
+**Sample rows (first 5, for context):**
+${JSON.stringify(sampleRows.slice(0, 5))}
 
-**Total rows in spreadsheet:** ${rows.length}
+## TASK 2: MERCHANT MATCHING
+For each unique merchant name from the spreadsheet, find the best matching merchant from the database. Use fuzzy matching — names may differ slightly (e.g., "Daggo/Sonichoice" vs "Daggo Sonichoice", "E-Commart Enugu" vs "E-commart").
 
-**Existing Merchants in Database:**
-${JSON.stringify(existingMerchants)}
+**Unique merchant names from spreadsheet:** ${JSON.stringify(uniqueMerchantNames)}
 
-**Existing Branches in Database:**
-${JSON.stringify(existingBranches)}
+**Existing merchants in database:** ${JSON.stringify(existingMerchants)}
 
-**Existing Products in Database (name + merchantId):**
-${JSON.stringify(existingProducts.slice(0, 500))}
+## TASK 3: BRANCH MATCHING
+Same as merchant matching but for branches.
 
-## RESPONSE FORMAT (strict JSON, no markdown):
+**Unique branch names from spreadsheet:** ${JSON.stringify(uniqueBranchNames)}
+
+**Existing branches in database:** ${JSON.stringify(existingBranches)}
+
+## RESPONSE FORMAT (strict JSON only):
 {
   "column_mapping": {
     "<original_header>": "<system_field or null if not mappable>"
   },
   "merchant_matches": {
     "<spreadsheet_merchant_name>": {
-      "matched_id": "<existing merchant UUID or null>",
+      "matched_id": "<existing merchant UUID or null if no match>",
       "matched_name": "<existing merchant name or null>",
       "confidence": "high|medium|low",
-      "is_new": false
+      "is_new": true
     }
   },
   "branch_matches": {
     "<spreadsheet_branch_name>": {
-      "matched_id": "<existing branch UUID or null>",
+      "matched_id": "<existing branch UUID or null if no match>",
       "matched_name": "<existing branch name or null>",
       "confidence": "high|medium|low",
-      "is_new": false
+      "is_new": true
     }
-  },
-  "products": [
-    {
-      "row_index": 0,
-      "name": "Product Name",
-      "merchant_name": "Merchant from spreadsheet",
-      "branch_name": "Branch from spreadsheet or null",
-      "quantity": 10,
-      "description": null,
-      "date_received": null,
-      "additional_info": null,
-      "low_stock_alert": 10,
-      "is_duplicate": false,
-      "duplicate_reason": null
-    }
-  ],
-  "summary": {
-    "total_rows": 0,
-    "new_products": 0,
-    "duplicates": 0,
-    "new_merchants": 0,
-    "unmatched_branches": 0
   }
 }`;
 
