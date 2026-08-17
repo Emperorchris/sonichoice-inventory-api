@@ -9,6 +9,7 @@ import { randomBytes } from 'crypto';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { OpenAIService } from 'src/openai/openai.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ActionKeywords } from 'generated/prisma/enums';
@@ -38,7 +39,10 @@ const PRODUCT_INCLUDE = {
 export class ProductService {
 	private readonly logger = new Logger(ProductService.name);
 
-	constructor(private readonly prisma: PrismaService) { }
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly openaiService: OpenAIService,
+	) { }
 
 	private buildWhereFilter(search?: string, merchantId?: string, branchId?: string) {
 		const where: any = {};
@@ -259,6 +263,185 @@ export class ProductService {
 			}
 			this.logger.error(`Failed to create product: ${error.message}`, error.stack);
 			throw new InternalServerErrorException('Failed to create product', error);
+		}
+	}
+
+	async bulkUpload(fileBuffer: Buffer, user: ActionUser) {
+		try {
+			// 1. Parse Excel file
+			const workbook = new ExcelJS.Workbook();
+			await workbook.xlsx.load(fileBuffer as any);
+			const sheet = workbook.worksheets[0];
+
+			if (!sheet || sheet.rowCount < 2) {
+				throw new BadRequestException('Spreadsheet is empty or has no data rows');
+			}
+
+			const headers: string[] = [];
+			sheet.getRow(1).eachCell((cell, _colNumber) => {
+				headers.push(String(cell.value || '').trim());
+			});
+
+			if (headers.length === 0) {
+				throw new BadRequestException('No column headers found in spreadsheet');
+			}
+
+			const rows: Record<string, any>[] = [];
+			for (let i = 2; i <= sheet.rowCount; i++) {
+				const row = sheet.getRow(i);
+				const rowData: Record<string, any> = {};
+				let hasData = false;
+				headers.forEach((header, index) => {
+					const cell = row.getCell(index + 1);
+					const value = cell.value;
+					rowData[header] = value !== null && value !== undefined ? String(value).trim() : null;
+					if (rowData[header]) hasData = true;
+				});
+				if (hasData) rows.push(rowData);
+			}
+
+			if (rows.length === 0) {
+				throw new BadRequestException('No data rows found in spreadsheet');
+			}
+
+			// 2. Fetch existing data from DB for AI matching
+			const [existingMerchants, existingBranches, existingProducts] = await Promise.all([
+				this.prisma.merchant.findMany({ select: { id: true, name: true } }),
+				this.prisma.branch.findMany({ select: { id: true, name: true } }),
+				this.prisma.product.findMany({ select: { name: true, merchantId: true } }),
+			]);
+
+			// 3. Send to OpenAI for analysis
+			const aiResult = await this.openaiService.analyzeSpreadsheetData(
+				headers,
+				rows,
+				existingMerchants,
+				existingBranches,
+				existingProducts,
+			);
+
+			// 4. Create new merchants that don't exist yet
+			const merchantIdMap = new Map<string, string>(); // spreadsheet name -> DB id
+
+			for (const [spreadsheetName, match] of Object.entries(aiResult.merchant_matches) as [string, any][]) {
+				if (match.matched_id && !match.is_new) {
+					merchantIdMap.set(spreadsheetName, match.matched_id);
+				} else {
+					// Create new merchant
+					const newMerchant = await this.prisma.merchant.create({
+						data: { name: spreadsheetName },
+					});
+					merchantIdMap.set(spreadsheetName, newMerchant.id);
+					this.logger.log(`Created new merchant: "${spreadsheetName}" (${newMerchant.id})`);
+				}
+			}
+
+			// 5. Resolve branch IDs
+			const branchIdMap = new Map<string, string>(); // spreadsheet name -> DB id
+
+			for (const [spreadsheetName, match] of Object.entries(aiResult.branch_matches || {}) as [string, any][]) {
+				if (match.matched_id && !match.is_new) {
+					branchIdMap.set(spreadsheetName, match.matched_id);
+				}
+			}
+
+			// 6. Bulk insert products (skip duplicates)
+			const created: Product[] = [];
+			const skipped: { name: string; reason: string }[] = [];
+			const errors: { name: string; error: string }[] = [];
+
+			for (const aiProduct of aiResult.products) {
+				// Skip duplicates
+				if (aiProduct.is_duplicate) {
+					skipped.push({
+						name: aiProduct.name,
+						reason: aiProduct.duplicate_reason || 'Duplicate product detected',
+					});
+					continue;
+				}
+
+				const merchantId = merchantIdMap.get(aiProduct.merchant_name);
+				if (!merchantId) {
+					errors.push({
+						name: aiProduct.name,
+						error: `Could not resolve merchant: "${aiProduct.merchant_name}"`,
+					});
+					continue;
+				}
+
+				try {
+					// Generate tracking ID
+					const merchant = existingMerchants.find(m => m.id === merchantId)
+						|| { name: aiProduct.merchant_name };
+					const prefix = merchant.name.substring(0, 4).toUpperCase();
+					const year = new Date().getFullYear();
+					const unique = randomBytes(4).toString('hex').toUpperCase();
+					const trackingId = `${prefix}-${year}-${unique}`;
+
+					// Build stock data if branch is found
+					const branchId = aiProduct.branch_name ? branchIdMap.get(aiProduct.branch_name) : null;
+					const quantity = parseInt(aiProduct.quantity) || 0;
+					const lowStockAlert = parseInt(aiProduct.low_stock_alert) || 10;
+
+					const product = await this.prisma.product.create({
+						data: {
+							name: aiProduct.name,
+							merchantId,
+							trackingId,
+							description: aiProduct.description || null,
+							dateReceived: aiProduct.date_received ? new Date(aiProduct.date_received) : null,
+							additionalInfo: aiProduct.additional_info || null,
+							stocks: branchId
+								? { create: { branchId, quantity, lowStockAlert } }
+								: undefined,
+						},
+						include: PRODUCT_INCLUDE,
+					});
+
+					created.push(new Product(product));
+				} catch (err) {
+					errors.push({
+						name: aiProduct.name,
+						error: err.message,
+					});
+				}
+			}
+
+			// 7. Log activity
+			if (user) {
+				await this.prisma.activityLogs.create({
+					data: {
+						userId: user.id,
+						branchId: user.branchId,
+						action: `${user.name || user.email} bulk uploaded ${created.length} products`,
+						actionDetails: `Total rows: ${rows.length}, Created: ${created.length}, Duplicates skipped: ${skipped.length}, Errors: ${errors.length}`,
+						actionKeyword: ActionKeywords.PRODUCT,
+						resourceId: null,
+						resourceType: 'product',
+					},
+				});
+			}
+
+			return {
+				message: `Bulk upload completed`,
+				data: {
+					created: created.length,
+					skipped: skipped.length,
+					errors: errors.length,
+					total_processed: rows.length,
+				},
+				created_products: created,
+				skipped_duplicates: skipped,
+				errors,
+				ai_summary: aiResult.summary,
+				merchant_matches: aiResult.merchant_matches,
+			};
+		} catch (error) {
+			if (error instanceof BadRequestException) {
+				throw error;
+			}
+			this.logger.error(`Bulk upload failed: ${error.message}`, error.stack);
+			throw new InternalServerErrorException('Bulk upload failed: ' + error.message);
 		}
 	}
 
