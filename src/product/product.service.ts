@@ -5,7 +5,7 @@ import {
 	InternalServerErrorException,
 	BadRequestException,
 } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -391,10 +391,28 @@ export class ProductService {
 				existingProducts.map(p => `${p.name.toLowerCase()}|${p.merchantId}`),
 			);
 
-			// 8. Process ALL rows in code — no AI dependency here
-			const created: Product[] = [];
+			// 8. Prepare all rows in code — no AI dependency here
 			const skipped: { name: string; reason: string }[] = [];
 			const errors: { name: string; error: string }[] = [];
+
+			type PreparedProduct = {
+				id: string;
+				name: string;
+				merchantId: string;
+				trackingId: string;
+				description: string | null;
+				dateReceived: Date | null;
+				additionalInfo: string | null;
+			};
+			type PreparedStock = {
+				productId: string;
+				branchId: string;
+				quantity: number;
+				lowStockAlert: number;
+			};
+
+			const productsToInsert: PreparedProduct[] = [];
+			const stocksToInsert: PreparedStock[] = [];
 
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
@@ -412,14 +430,13 @@ export class ProductService {
 				if (merchantNameRaw) {
 					merchantId = merchantIdMap.get(merchantNameRaw.toLowerCase()) || null;
 
-					// If AI didn't match this specific value, try to create it
+					// If AI didn't match this specific value, create it
 					if (!merchantId) {
 						const newMerchant = await this.prisma.merchant.create({
 							data: { name: merchantNameRaw },
 						});
 						merchantId = newMerchant.id;
 						merchantIdMap.set(merchantNameRaw.toLowerCase(), newMerchant.id);
-						this.logger.log(`Auto-created merchant: "${merchantNameRaw}" (${newMerchant.id})`);
 					}
 				}
 
@@ -428,70 +445,84 @@ export class ProductService {
 					continue;
 				}
 
-				// Check for duplicates in DB
+				// Check for duplicates (DB + within this batch)
 				const dupeKey = `${productName.toLowerCase()}|${merchantId}`;
 				if (existingProductSet.has(dupeKey)) {
-					skipped.push({ name: productName, reason: `Already exists under this merchant` });
+					skipped.push({ name: productName, reason: 'Already exists under this merchant' });
 					continue;
 				}
+				// Mark as seen so further rows in same batch are caught
+				existingProductSet.add(dupeKey);
 
-				// Check for duplicates within this upload batch
-				if (existingProductSet.has(dupeKey)) {
-					skipped.push({ name: productName, reason: `Duplicate within this upload batch` });
-					continue;
-				}
+				// Generate tracking ID
+				const merchantName = merchantNameRaw || 'UNKN';
+				const prefix = merchantName.substring(0, 4).toUpperCase();
+				const year = new Date().getFullYear();
+				const unique = randomBytes(4).toString('hex').toUpperCase();
+				const trackingId = `${prefix}-${year}-${unique}`;
 
-				try {
-					// Generate tracking ID
-					const merchantName = merchantNameRaw || 'UNKN';
-					const prefix = merchantName.substring(0, 4).toUpperCase();
-					const year = new Date().getFullYear();
-					const unique = randomBytes(4).toString('hex').toUpperCase();
-					const trackingId = `${prefix}-${year}-${unique}`;
+				// Generate UUID for the product so we can link stocks
+				const productId = randomUUID();
 
-					// Resolve branch
-					const branchNameRaw = branchNameCol ? row[branchNameCol]?.trim() : null;
-					const branchId = branchNameRaw ? branchIdMap.get(branchNameRaw.toLowerCase()) || null : null;
+				// Resolve branch
+				const branchNameRaw = branchNameCol ? row[branchNameCol]?.trim() : null;
+				const branchId = branchNameRaw ? branchIdMap.get(branchNameRaw.toLowerCase()) || null : null;
 
-					// Extract other fields
-					const quantity = quantityCol ? parseInt(row[quantityCol]) || 0 : 0;
-					const lowStockAlert = lowStockAlertCol ? parseInt(row[lowStockAlertCol]) || 10 : 10;
-					const description = descriptionCol ? row[descriptionCol] || null : null;
-					const additionalInfo = additionalInfoCol ? row[additionalInfoCol] || null : null;
-					const dateReceivedRaw = dateReceivedCol ? row[dateReceivedCol] : null;
-					const dateReceived = dateReceivedRaw ? new Date(dateReceivedRaw) : null;
+				// Extract other fields
+				const quantity = quantityCol ? parseInt(row[quantityCol]) || 0 : 0;
+				const lowStockAlert = lowStockAlertCol ? parseInt(row[lowStockAlertCol]) || 10 : 10;
+				const description = descriptionCol ? row[descriptionCol] || null : null;
+				const additionalInfo = additionalInfoCol ? row[additionalInfoCol] || null : null;
+				const dateReceivedRaw = dateReceivedCol ? row[dateReceivedCol] : null;
+				const dateReceivedParsed = dateReceivedRaw ? new Date(dateReceivedRaw) : null;
 
-					const product = await this.prisma.product.create({
-						data: {
-							name: productName,
-							merchantId,
-							trackingId,
-							description,
-							dateReceived: dateReceived && !isNaN(dateReceived.getTime()) ? dateReceived : null,
-							additionalInfo,
-							stocks: branchId
-								? { create: { branchId, quantity, lowStockAlert } }
-								: undefined,
-						},
-						include: PRODUCT_INCLUDE,
-					});
+				productsToInsert.push({
+					id: productId,
+					name: productName,
+					merchantId,
+					trackingId,
+					description,
+					dateReceived: dateReceivedParsed && !isNaN(dateReceivedParsed.getTime()) ? dateReceivedParsed : null,
+					additionalInfo,
+				});
 
-					// Add to duplicate set so further rows in same batch are caught
-					existingProductSet.add(dupeKey);
-					created.push(new Product(product));
-				} catch (err) {
-					errors.push({ name: productName, error: err.message });
+				if (branchId) {
+					stocksToInsert.push({ productId, branchId, quantity, lowStockAlert });
 				}
 			}
 
-			// 9. Log activity
+			// 9. Batch insert in a single transaction — FAST
+			let createdCount = 0;
+
+			if (productsToInsert.length > 0) {
+				await this.prisma.$transaction(async (tx) => {
+					// Batch insert products (one query for all)
+					await tx.product.createMany({
+						data: productsToInsert,
+						skipDuplicates: true,
+					});
+
+					// Batch insert stocks (one query for all)
+					if (stocksToInsert.length > 0) {
+						await tx.productStock.createMany({
+							data: stocksToInsert,
+							skipDuplicates: true,
+						});
+					}
+				});
+
+				createdCount = productsToInsert.length;
+				this.logger.log(`Bulk inserted ${createdCount} products and ${stocksToInsert.length} stock records`);
+			}
+
+			// 10. Log activity
 			if (user) {
 				await this.prisma.activityLogs.create({
 					data: {
 						userId: user.id,
 						branchId: user.branchId,
-						action: `${user.name || user.email} bulk uploaded ${created.length} products`,
-						actionDetails: `Total rows: ${rows.length}, Created: ${created.length}, Duplicates skipped: ${skipped.length}, Errors: ${errors.length}`,
+						action: `${user.name || user.email} bulk uploaded ${createdCount} products`,
+						actionDetails: `Total rows: ${rows.length}, Created: ${createdCount}, Duplicates skipped: ${skipped.length}, Errors: ${errors.length}`,
 						actionKeyword: ActionKeywords.PRODUCT,
 						resourceId: null,
 						resourceType: 'product',
@@ -502,12 +533,11 @@ export class ProductService {
 			return {
 				message: `Bulk upload completed`,
 				data: {
-					created: created.length,
+					created: createdCount,
 					skipped: skipped.length,
 					errors: errors.length,
 					total_processed: rows.length,
 				},
-				created_products: created,
 				skipped_duplicates: skipped,
 				errors,
 				column_mapping: aiResult.column_mapping,
