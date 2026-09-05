@@ -14,101 +14,112 @@ export class OpenAIService {
 	}
 
 	/**
-	 * AI only handles the LIGHTWEIGHT tasks:
-	 * 1. Column mapping (headers → system fields)
-	 * 2. Merchant fuzzy matching (spreadsheet names → DB merchants)
-	 * 3. Branch fuzzy matching (spreadsheet names → DB branches)
-	 *
-	 * Row-by-row processing and duplicate detection is done in code — NOT by AI.
+	 * AI extracts structured product data from raw spreadsheet rows.
+	 * Handles column identification, entity matching, and data normalization.
+	 * Processes in batches to stay within token limits.
 	 */
-	async analyzeSpreadsheetStructure(
+	async extractProductsFromSpreadsheet(
 		headers: string[],
-		sampleRows: Record<string, any>[],
-		uniqueMerchantNames: string[],
-		uniqueBranchNames: string[],
+		rows: Record<string, any>[],
 		existingMerchants: { id: string; name: string }[],
 		existingBranches: { id: string; name: string }[],
-	) {
-		const prompt = `You are an AI assistant for an inventory management system. Analyze the spreadsheet structure and match entities. Return a structured JSON response.
+	): Promise<{
+		products: {
+			product_name: string;
+			merchant_name: string;
+			branch_name: string;
+			quantity: number;
+			description?: string | null;
+			additional_info?: string | null;
+		}[];
+	}> {
+		const BATCH_SIZE = 200;
+		const allProducts: any[] = [];
 
-## TASK 1: COLUMN MAPPING
-Map these spreadsheet column headers to system fields. Analyze header names intelligently — they may use any naming convention.
+		for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+			const batch = rows.slice(i, i + BATCH_SIZE);
+			const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+			const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
 
-System fields to map to:
-- "product_name" (REQUIRED) — the product/item name column
-- "merchant_name" — the merchant/supplier/vendor column
-- "branch_name" — the branch/store/location column
-- "quantity" — stock quantity/count/qty column
-- "description" — product description/details column
-- "date_received" — date received/added column
-- "additional_info" — any extra info/notes/remarks column
-- "low_stock_alert" — low stock threshold/alert level column
+			this.logger.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} rows)`);
 
-**Spreadsheet Headers:** ${JSON.stringify(headers)}
+			const prompt = `You are an AI assistant for an inventory management system. Extract structured product data from the spreadsheet rows below.
 
-**Sample rows (first 5, for context):**
-${JSON.stringify(sampleRows.slice(0, 5))}
+## YOUR TASK
+Analyze the spreadsheet data and extract EVERY row into a structured format. You must identify which columns contain:
+- **Product name** — the product/item name
+- **Merchant name** — the merchant/supplier/vendor
+- **Branch name** — the branch/store/location
+- **Quantity** — the stock quantity (default to 0 if not present or empty)
+- **Description** — product description (if present)
+- **Additional info** — any extra notes/remarks (if present)
 
-## TASK 2: MERCHANT MATCHING
-For each unique merchant name from the spreadsheet, find the best matching merchant from the database. Use fuzzy matching — names may differ slightly (e.g., "Daggo/Sonichoice" vs "Daggo Sonichoice", "E-Commart Enugu" vs "E-commart").
+## MERCHANT MATCHING
+Match spreadsheet merchant names to existing database merchants using fuzzy matching. Names may differ slightly (e.g., "Daggo/Sonichoice" vs "Daggo Sonichoice"). If no match, use the merchant name exactly as it appears in the spreadsheet — it will be created as a new merchant.
 
-**Unique merchant names from spreadsheet:** ${JSON.stringify(uniqueMerchantNames)}
+**Existing merchants in database:** ${JSON.stringify(existingMerchants.map(m => m.name))}
 
-**Existing merchants in database:** ${JSON.stringify(existingMerchants)}
+## BRANCH MATCHING
+Same fuzzy matching for branches. If a branch name doesn't match any existing branch, use the name exactly as it appears — it will be created as a new branch.
 
-## TASK 3: BRANCH MATCHING
-Same as merchant matching but for branches.
+**Existing branches in database:** ${JSON.stringify(existingBranches.map(b => b.name))}
 
-**Unique branch names from spreadsheet:** ${JSON.stringify(uniqueBranchNames)}
+## SPREADSHEET DATA
+**Headers:** ${JSON.stringify(headers)}
 
-**Existing branches in database:** ${JSON.stringify(existingBranches)}
+**Rows:**
+${JSON.stringify(batch)}
 
 ## RESPONSE FORMAT (strict JSON only):
 {
-  "column_mapping": {
-    "<original_header>": "<system_field or null if not mappable>"
-  },
-  "merchant_matches": {
-    "<spreadsheet_merchant_name>": {
-      "matched_id": "<existing merchant UUID or null if no match>",
-      "matched_name": "<existing merchant name or null>",
-      "confidence": "high|medium|low",
-      "is_new": true
+  "products": [
+    {
+      "product_name": "string",
+      "merchant_name": "string (matched to existing or exact from spreadsheet)",
+      "branch_name": "string (matched to existing or exact from spreadsheet)",
+      "quantity": number,
+      "description": "string or null",
+      "additional_info": "string or null"
     }
-  },
-  "branch_matches": {
-    "<spreadsheet_branch_name>": {
-      "matched_id": "<existing branch UUID or null if no match>",
-      "matched_name": "<existing branch name or null>",
-      "confidence": "high|medium|low",
-      "is_new": true
-    }
-  }
-}`;
+  ]
+}
 
-		try {
-			const response = await this.client.chat.completions.create({
-				model: 'gpt-4o-mini',
-				messages: [
-					{
-						role: 'system',
-						content: 'You are a data processing assistant. Always respond with valid JSON only. No markdown, no explanation, just JSON.',
-					},
-					{ role: 'user', content: prompt },
-				],
-				temperature: 0.1,
-				response_format: { type: 'json_object' },
-			});
+IMPORTANT:
+- Extract EVERY row. Do not skip any.
+- Use the quantity value from the spreadsheet exactly as-is. If empty, default to 0.
+- Normalize merchant and branch names to match existing database entries when possible.
+- If a row has no product name, skip it.`;
 
-			const content = response.choices[0]?.message?.content;
-			if (!content) {
-				throw new Error('Empty response from OpenAI');
+			try {
+				const response = await this.client.chat.completions.create({
+					model: 'gpt-4o-mini',
+					messages: [
+						{
+							role: 'system',
+							content: 'You are a data extraction assistant. Always respond with valid JSON only. No markdown, no explanation, just JSON.',
+						},
+						{ role: 'user', content: prompt },
+					],
+					temperature: 0.1,
+					response_format: { type: 'json_object' },
+				});
+
+				const content = response.choices[0]?.message?.content;
+				if (!content) {
+					throw new Error(`Empty response from OpenAI for batch ${batchNum}`);
+				}
+
+				const parsed = JSON.parse(content);
+				if (parsed.products && Array.isArray(parsed.products)) {
+					allProducts.push(...parsed.products);
+				}
+			} catch (error) {
+				this.logger.error(`OpenAI batch ${batchNum} failed: ${error.message}`, error.stack);
+				throw error;
 			}
-
-			return JSON.parse(content);
-		} catch (error) {
-			this.logger.error(`OpenAI analysis failed: ${error.message}`, error.stack);
-			throw error;
 		}
+
+		this.logger.log(`AI extracted ${allProducts.length} products from ${rows.length} rows`);
+		return { products: allProducts };
 	}
 }

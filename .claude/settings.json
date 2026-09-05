@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/Emperorchjs/techspace/nestJs/sonichoice-inventory-api/prisma/models/**)"
+    ]
+  }
+}

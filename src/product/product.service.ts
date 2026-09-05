@@ -313,77 +313,53 @@ export class ProductService {
 				this.prisma.product.findMany({ select: { name: true, merchantId: true } }),
 			]);
 
-			// 3. Extract unique values per column for AI matching
-			const sampleRows = rows.slice(0, 5);
-
-			// Collect all unique string values per column for merchant/branch extraction
-			const uniqueValuesPerColumn: Record<string, string[]> = {};
-			for (const header of headers) {
-				const values = [...new Set(rows.map(r => r[header]).filter(Boolean).map(String))];
-				uniqueValuesPerColumn[header] = values;
-			}
-
-			// Send lightweight request to AI: just headers, 5 sample rows, unique entity names
-			const aiResult = await this.openaiService.analyzeSpreadsheetStructure(
+			// 3. Send ALL rows to AI for extraction (batched internally)
+			const aiResult = await this.openaiService.extractProductsFromSpreadsheet(
 				headers,
-				sampleRows,
-				// Send all unique values from all columns — AI will figure out which are merchants
-				Object.values(uniqueValuesPerColumn).flat(),
-				Object.values(uniqueValuesPerColumn).flat(),
+				rows,
 				existingMerchants,
 				existingBranches,
 			);
 
-			this.logger.log(`AI column mapping: ${JSON.stringify(aiResult.column_mapping)}`);
+			this.logger.log(`AI extracted ${aiResult.products.length} products`);
 
-			// 4. Build reverse column mapping: system_field -> original_header
-			const fieldToHeader: Record<string, string> = {};
-			for (const [originalHeader, systemField] of Object.entries(aiResult.column_mapping)) {
-				if (systemField) {
-					fieldToHeader[systemField as string] = originalHeader;
+			// 4. Build merchant ID map from existing DB merchants (case-insensitive)
+			const merchantIdMap = new Map<string, string>();
+			for (const m of existingMerchants) {
+				merchantIdMap.set(m.name.toLowerCase(), m.id);
+			}
+
+			// 5. Build branch ID map from existing DB branches (case-insensitive)
+			const branchIdMap = new Map<string, string>();
+			for (const b of existingBranches) {
+				branchIdMap.set(b.name.toLowerCase(), b.id);
+			}
+
+			// 6. Auto-create merchants and branches that don't exist yet
+			const newMerchantNames = new Set<string>();
+			const newBranchNames = new Set<string>();
+
+			for (const p of aiResult.products) {
+				if (p.merchant_name && !merchantIdMap.has(p.merchant_name.toLowerCase())) {
+					newMerchantNames.add(p.merchant_name);
+				}
+				if (p.branch_name && !branchIdMap.has(p.branch_name.toLowerCase())) {
+					newBranchNames.add(p.branch_name);
 				}
 			}
 
-			const productNameCol = fieldToHeader['product_name'];
-			if (!productNameCol) {
-				throw new BadRequestException('AI could not detect a product name column in your spreadsheet. Please ensure one column contains product names.');
+			// Create new merchants
+			for (const name of newMerchantNames) {
+				const newMerchant = await this.prisma.merchant.create({ data: { name } });
+				merchantIdMap.set(name.toLowerCase(), newMerchant.id);
+				this.logger.log(`Created new merchant: "${name}" (${newMerchant.id})`);
 			}
 
-			const merchantNameCol = fieldToHeader['merchant_name'];
-			const branchNameCol = fieldToHeader['branch_name'];
-			const quantityCol = fieldToHeader['quantity'];
-			const descriptionCol = fieldToHeader['description'];
-			const dateReceivedCol = fieldToHeader['date_received'];
-			const additionalInfoCol = fieldToHeader['additional_info'];
-			const lowStockAlertCol = fieldToHeader['low_stock_alert'];
-
-			// 5. Build merchant ID map from AI fuzzy matching + auto-create new ones
-			const merchantIdMap = new Map<string, string>(); // spreadsheet name (lowercase) -> DB id
-
-			for (const [spreadsheetName, match] of Object.entries(aiResult.merchant_matches || {}) as [string, any][]) {
-				if (match.matched_id && !match.is_new) {
-					merchantIdMap.set(spreadsheetName.toLowerCase(), match.matched_id);
-				}
-			}
-
-			// Auto-create merchants that AI flagged as new
-			for (const [spreadsheetName, match] of Object.entries(aiResult.merchant_matches || {}) as [string, any][]) {
-				if (match.is_new && !merchantIdMap.has(spreadsheetName.toLowerCase())) {
-					const newMerchant = await this.prisma.merchant.create({
-						data: { name: spreadsheetName },
-					});
-					merchantIdMap.set(spreadsheetName.toLowerCase(), newMerchant.id);
-					this.logger.log(`Created new merchant: "${spreadsheetName}" (${newMerchant.id})`);
-				}
-			}
-
-			// 6. Build branch ID map from AI fuzzy matching
-			const branchIdMap = new Map<string, string>(); // spreadsheet name (lowercase) -> DB id
-
-			for (const [spreadsheetName, match] of Object.entries(aiResult.branch_matches || {}) as [string, any][]) {
-				if (match.matched_id && !match.is_new) {
-					branchIdMap.set(spreadsheetName.toLowerCase(), match.matched_id);
-				}
+			// Create new branches
+			for (const name of newBranchNames) {
+				const newBranch = await this.prisma.branch.create({ data: { name } });
+				branchIdMap.set(name.toLowerCase(), newBranch.id);
+				this.logger.log(`Created new branch: "${name}" (${newBranch.id})`);
 			}
 
 			// 7. Build duplicate lookup set from existing products: "name|merchantId" (lowercase)
@@ -391,7 +367,7 @@ export class ProductService {
 				existingProducts.map(p => `${p.name.toLowerCase()}|${p.merchantId}`),
 			);
 
-			// 8. Prepare all rows in code — no AI dependency here
+			// 8. Prepare products and stocks from AI-extracted data
 			const skipped: { name: string; reason: string }[] = [];
 			const errors: { name: string; error: string }[] = [];
 
@@ -401,7 +377,6 @@ export class ProductService {
 				merchantId: string;
 				trackingId: string;
 				description: string | null;
-				dateReceived: Date | null;
 				additionalInfo: string | null;
 			};
 			type PreparedStock = {
@@ -414,95 +389,99 @@ export class ProductService {
 			const productsToInsert: PreparedProduct[] = [];
 			const stocksToInsert: PreparedStock[] = [];
 
-			for (let i = 0; i < rows.length; i++) {
-				const row = rows[i];
-				const productName = row[productNameCol]?.trim();
+			for (let i = 0; i < aiResult.products.length; i++) {
+				const item = aiResult.products[i];
 
-				if (!productName) {
-					errors.push({ name: `Row ${i + 2}`, error: 'Missing product name' });
+				if (!item.product_name?.trim()) {
+					errors.push({ name: `AI Row ${i + 1}`, error: 'Missing product name' });
 					continue;
 				}
+
+				const productName = item.product_name.trim();
 
 				// Resolve merchant
-				const merchantNameRaw = merchantNameCol ? row[merchantNameCol]?.trim() : null;
-				let merchantId: string | null = null;
-
-				if (merchantNameRaw) {
-					merchantId = merchantIdMap.get(merchantNameRaw.toLowerCase()) || null;
-
-					// If AI didn't match this specific value, create it
-					if (!merchantId) {
-						const newMerchant = await this.prisma.merchant.create({
-							data: { name: merchantNameRaw },
-						});
-						merchantId = newMerchant.id;
-						merchantIdMap.set(merchantNameRaw.toLowerCase(), newMerchant.id);
-					}
-				}
+				const merchantId = item.merchant_name
+					? merchantIdMap.get(item.merchant_name.toLowerCase()) || null
+					: null;
 
 				if (!merchantId) {
-					errors.push({ name: productName, error: 'No merchant column found or merchant name is empty' });
+					errors.push({ name: productName, error: `Merchant not resolved: "${item.merchant_name}"` });
 					continue;
 				}
+
+				// Resolve branch
+				const branchId = item.branch_name
+					? branchIdMap.get(item.branch_name.toLowerCase()) || null
+					: null;
 
 				// Check for duplicates (DB + within this batch)
 				const dupeKey = `${productName.toLowerCase()}|${merchantId}`;
 				if (existingProductSet.has(dupeKey)) {
-					skipped.push({ name: productName, reason: 'Already exists under this merchant' });
+					// Product already exists — but we may still need to add stock for a new branch
+					if (branchId) {
+						const existingProduct = await this.prisma.product.findFirst({
+							where: { name: { equals: productName }, merchantId },
+							select: { id: true },
+						});
+						if (existingProduct) {
+							const existingStock = await this.prisma.productStock.findFirst({
+								where: { productId: existingProduct.id, branchId },
+							});
+							if (!existingStock) {
+								stocksToInsert.push({
+									productId: existingProduct.id,
+									branchId,
+									quantity: item.quantity || 0,
+									lowStockAlert: 10,
+								});
+							}
+						}
+					}
+					skipped.push({ name: productName, reason: 'Already exists under this merchant (stock updated if new branch)' });
 					continue;
 				}
-				// Mark as seen so further rows in same batch are caught
 				existingProductSet.add(dupeKey);
 
 				// Generate tracking ID
-				const merchantName = merchantNameRaw || 'UNKN';
+				const merchantName = item.merchant_name || 'UNKN';
 				const prefix = merchantName.substring(0, 4).toUpperCase();
 				const year = new Date().getFullYear();
 				const unique = randomBytes(4).toString('hex').toUpperCase();
 				const trackingId = `${prefix}-${year}-${unique}`;
 
-				// Generate UUID for the product so we can link stocks
 				const productId = randomUUID();
-
-				// Resolve branch
-				const branchNameRaw = branchNameCol ? row[branchNameCol]?.trim() : null;
-				const branchId = branchNameRaw ? branchIdMap.get(branchNameRaw.toLowerCase()) || null : null;
-
-				// Extract other fields
-				const quantity = quantityCol ? parseInt(row[quantityCol]) || 0 : 0;
-				const lowStockAlert = lowStockAlertCol ? parseInt(row[lowStockAlertCol]) || 10 : 10;
-				const description = descriptionCol ? row[descriptionCol] || null : null;
-				const additionalInfo = additionalInfoCol ? row[additionalInfoCol] || null : null;
-				const dateReceivedRaw = dateReceivedCol ? row[dateReceivedCol] : null;
-				const dateReceivedParsed = dateReceivedRaw ? new Date(dateReceivedRaw) : null;
 
 				productsToInsert.push({
 					id: productId,
 					name: productName,
 					merchantId,
 					trackingId,
-					description,
-					dateReceived: dateReceivedParsed && !isNaN(dateReceivedParsed.getTime()) ? dateReceivedParsed : null,
-					additionalInfo,
+					description: item.description || null,
+					additionalInfo: item.additional_info || null,
 				});
 
 				if (branchId) {
-					stocksToInsert.push({ productId, branchId, quantity, lowStockAlert });
+					stocksToInsert.push({
+						productId,
+						branchId,
+						quantity: item.quantity || 0,
+						lowStockAlert: 10,
+					});
 				}
 			}
 
-			// 9. Batch insert in a single transaction — FAST
+			// 9. Batch insert in a single transaction
 			let createdCount = 0;
 
-			if (productsToInsert.length > 0) {
+			if (productsToInsert.length > 0 || stocksToInsert.length > 0) {
 				await this.prisma.$transaction(async (tx) => {
-					// Batch insert products (one query for all)
-					await tx.product.createMany({
-						data: productsToInsert,
-						skipDuplicates: true,
-					});
+					if (productsToInsert.length > 0) {
+						await tx.product.createMany({
+							data: productsToInsert,
+							skipDuplicates: true,
+						});
+					}
 
-					// Batch insert stocks (one query for all)
 					if (stocksToInsert.length > 0) {
 						await tx.productStock.createMany({
 							data: stocksToInsert,
@@ -522,7 +501,7 @@ export class ProductService {
 						userId: user.id,
 						branchId: user.branchId,
 						action: `${user.name || user.email} bulk uploaded ${createdCount} products`,
-						actionDetails: `Total rows: ${rows.length}, Created: ${createdCount}, Duplicates skipped: ${skipped.length}, Errors: ${errors.length}`,
+						actionDetails: `Total rows: ${rows.length}, AI extracted: ${aiResult.products.length}, Created: ${createdCount}, Duplicates skipped: ${skipped.length}, Errors: ${errors.length}, New merchants: ${newMerchantNames.size}, New branches: ${newBranchNames.size}`,
 						actionKeyword: ActionKeywords.PRODUCT,
 						resourceId: null,
 						resourceType: 'product',
@@ -537,11 +516,13 @@ export class ProductService {
 					skipped: skipped.length,
 					errors: errors.length,
 					total_processed: rows.length,
+					ai_extracted: aiResult.products.length,
+					new_merchants_created: newMerchantNames.size,
+					new_branches_created: newBranchNames.size,
+					stocks_created: stocksToInsert.length,
 				},
 				skipped_duplicates: skipped,
 				errors,
-				column_mapping: aiResult.column_mapping,
-				merchant_matches: aiResult.merchant_matches,
 			};
 		} catch (error) {
 			if (error instanceof BadRequestException) {
