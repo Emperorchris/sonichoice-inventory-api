@@ -266,6 +266,41 @@ export class ProductService {
 		}
 	}
 
+	/**
+	 * Normalize entity name for fuzzy matching: lowercase, strip whitespace, remove common suffixes like "branch"
+	 */
+	private normalizeEntityName(name: string): string {
+		return name
+			.toLowerCase()
+			.replace(/\s+/g, ' ')
+			.replace(/\bbranch\b/gi, '')
+			.replace(/[^a-z0-9+]/g, '')
+			.trim();
+	}
+
+	/**
+	 * Find matching entity ID from map using normalized fuzzy key.
+	 * Returns the matched ID or null if no match found.
+	 */
+	private resolveEntityName(name: string, idMap: Map<string, string>): string | null {
+		// 1. Try exact normalized match
+		const normKey = this.normalizeEntityName(name);
+		if (idMap.has(normKey)) return idMap.get(normKey)!;
+
+		// 2. Try simple lowercase match (handles case-only differences)
+		const lowerKey = name.toLowerCase().trim();
+		for (const [key, id] of idMap) {
+			if (key === lowerKey) return id;
+		}
+
+		// 3. Try contains match (handles "Enugu Branch" vs "Enugu")
+		for (const [key, id] of idMap) {
+			if (normKey.includes(key) || key.includes(normKey)) return id;
+		}
+
+		return null;
+	}
+
 	async bulkUpload(fileBuffer: Buffer, user: ActionUser) {
 		try {
 			// 1. Parse Excel file
@@ -323,42 +358,64 @@ export class ProductService {
 
 			this.logger.log(`AI extracted ${aiResult.products.length} products`);
 
-			// 4. Build merchant ID map from existing DB merchants (case-insensitive)
-			const merchantIdMap = new Map<string, string>();
+			// 4. Build merchant/branch ID maps with fuzzy lookup support
+			const merchantIdMap = new Map<string, string>(); // normalized name -> DB id
+			const merchantCanonicalName = new Map<string, string>(); // normalized -> original DB name
 			for (const m of existingMerchants) {
-				merchantIdMap.set(m.name.toLowerCase(), m.id);
+				const key = this.normalizeEntityName(m.name);
+				merchantIdMap.set(key, m.id);
+				merchantCanonicalName.set(key, m.name);
 			}
 
-			// 5. Build branch ID map from existing DB branches (case-insensitive)
 			const branchIdMap = new Map<string, string>();
+			const branchCanonicalName = new Map<string, string>();
 			for (const b of existingBranches) {
-				branchIdMap.set(b.name.toLowerCase(), b.id);
+				const key = this.normalizeEntityName(b.name);
+				branchIdMap.set(key, b.id);
+				branchCanonicalName.set(key, b.name);
 			}
 
-			// 6. Auto-create merchants and branches that don't exist yet
+			// 5. Resolve each AI-returned name to existing or new, preventing duplicates
 			const newMerchantNames = new Set<string>();
 			const newBranchNames = new Set<string>();
 
 			for (const p of aiResult.products) {
-				if (p.merchant_name && !merchantIdMap.has(p.merchant_name.toLowerCase())) {
-					newMerchantNames.add(p.merchant_name);
+				if (p.merchant_name) {
+					const resolved = this.resolveEntityName(p.merchant_name, merchantIdMap);
+					if (!resolved) {
+						// Truly new — but dedup within this batch
+						const normKey = this.normalizeEntityName(p.merchant_name);
+						if (!merchantIdMap.has(normKey)) {
+							newMerchantNames.add(p.merchant_name);
+						}
+					}
 				}
-				if (p.branch_name && !branchIdMap.has(p.branch_name.toLowerCase())) {
-					newBranchNames.add(p.branch_name);
+				if (p.branch_name) {
+					const resolved = this.resolveEntityName(p.branch_name, branchIdMap);
+					if (!resolved) {
+						const normKey = this.normalizeEntityName(p.branch_name);
+						if (!branchIdMap.has(normKey)) {
+							newBranchNames.add(p.branch_name);
+						}
+					}
 				}
 			}
 
-			// Create new merchants
+			// Create new merchants (only truly new ones)
 			for (const name of newMerchantNames) {
 				const newMerchant = await this.prisma.merchant.create({ data: { name } });
-				merchantIdMap.set(name.toLowerCase(), newMerchant.id);
+				const key = this.normalizeEntityName(name);
+				merchantIdMap.set(key, newMerchant.id);
+				merchantCanonicalName.set(key, name);
 				this.logger.log(`Created new merchant: "${name}" (${newMerchant.id})`);
 			}
 
-			// Create new branches
+			// Create new branches (only truly new ones)
 			for (const name of newBranchNames) {
 				const newBranch = await this.prisma.branch.create({ data: { name } });
-				branchIdMap.set(name.toLowerCase(), newBranch.id);
+				const key = this.normalizeEntityName(name);
+				branchIdMap.set(key, newBranch.id);
+				branchCanonicalName.set(key, name);
 				this.logger.log(`Created new branch: "${name}" (${newBranch.id})`);
 			}
 
@@ -399,9 +456,9 @@ export class ProductService {
 
 				const productName = item.product_name.trim();
 
-				// Resolve merchant
+				// Resolve merchant (fuzzy)
 				const merchantId = item.merchant_name
-					? merchantIdMap.get(item.merchant_name.toLowerCase()) || null
+					? this.resolveEntityName(item.merchant_name, merchantIdMap)
 					: null;
 
 				if (!merchantId) {
@@ -409,9 +466,9 @@ export class ProductService {
 					continue;
 				}
 
-				// Resolve branch
+				// Resolve branch (fuzzy)
 				const branchId = item.branch_name
-					? branchIdMap.get(item.branch_name.toLowerCase()) || null
+					? this.resolveEntityName(item.branch_name, branchIdMap)
 					: null;
 
 				// Check for duplicates (DB + within this batch)

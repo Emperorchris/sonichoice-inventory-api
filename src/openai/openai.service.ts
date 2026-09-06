@@ -34,15 +34,21 @@ export class OpenAIService {
 		}[];
 	}> {
 		const BATCH_SIZE = 200;
-		const allProducts: any[] = [];
+
+		// Build all batch promises upfront, then run in parallel
+		const batches: { batch: Record<string, any>[]; batchNum: number }[] = [];
+		const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
 
 		for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-			const batch = rows.slice(i, i + BATCH_SIZE);
-			const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-			const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
+			batches.push({
+				batch: rows.slice(i, i + BATCH_SIZE),
+				batchNum: Math.floor(i / BATCH_SIZE) + 1,
+			});
+		}
 
-			this.logger.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} rows)`);
+		this.logger.log(`Processing ${totalBatches} batches in parallel`);
 
+		const batchPromises = batches.map(({ batch, batchNum }) => {
 			const prompt = `You are an AI assistant for an inventory management system. Extract structured product data from the spreadsheet rows below.
 
 ## YOUR TASK
@@ -54,15 +60,29 @@ Analyze the spreadsheet data and extract EVERY row into a structured format. You
 - **Description** — product description (if present)
 - **Additional info** — any extra notes/remarks (if present)
 
-## MERCHANT MATCHING
-Match spreadsheet merchant names to existing database merchants using fuzzy matching. Names may differ slightly (e.g., "Daggo/Sonichoice" vs "Daggo Sonichoice"). If no match, use the merchant name exactly as it appears in the spreadsheet — it will be created as a new merchant.
+## CRITICAL: MERCHANT NAME MATCHING
+You MUST match spreadsheet merchant names to the EXACT name from the existing database list below. Use fuzzy/intelligent matching:
+- Case differences: "GLUTATHIONE" → use existing "Glutathione"
+- Abbreviations: "E-Commart" → use existing "E-commart Enugu"
+- Slashes/separators: "Daggo/Sonichoice" → use existing "Daggo Sonichoice"
+- Partial matches: "577+377" → use existing "577+377 group"
 
-**Existing merchants in database:** ${JSON.stringify(existingMerchants.map(m => m.name))}
+**ALWAYS use the EXACT string from this list when a match is found (copy-paste it exactly):**
+${JSON.stringify(existingMerchants.map(m => m.name))}
 
-## BRANCH MATCHING
-Same fuzzy matching for branches. If a branch name doesn't match any existing branch, use the name exactly as it appears — it will be created as a new branch.
+Only if there is truly NO matching merchant in the list above, use the spreadsheet name as-is (it will be created as new).
 
-**Existing branches in database:** ${JSON.stringify(existingBranches.map(b => b.name))}
+## CRITICAL: BRANCH NAME MATCHING
+Same rules as merchant matching. You MUST use the EXACT branch name from the database when a match exists.
+- "EBONYI" → use existing "Ebonyi" (if it exists)
+- "Enugu Branch" and "Enugu" are the SAME branch — use whichever exists in the database
+- "NSUKKA" → use existing "Nsukka" (if it exists)
+- Never create a new branch if an existing one matches (even loosely)
+
+**ALWAYS use the EXACT string from this list when a match is found (copy-paste it exactly):**
+${JSON.stringify(existingBranches.map(b => b.name))}
+
+Only if there is truly NO matching branch in the list above, use the spreadsheet name as-is (it will be created as new).
 
 ## SPREADSHEET DATA
 **Headers:** ${JSON.stringify(headers)}
@@ -75,8 +95,8 @@ ${JSON.stringify(batch)}
   "products": [
     {
       "product_name": "string",
-      "merchant_name": "string (matched to existing or exact from spreadsheet)",
-      "branch_name": "string (matched to existing or exact from spreadsheet)",
+      "merchant_name": "string — MUST be exact copy from existing merchants list if matched",
+      "branch_name": "string — MUST be exact copy from existing branches list if matched",
       "quantity": number,
       "description": "string or null",
       "additional_info": "string or null"
@@ -87,37 +107,37 @@ ${JSON.stringify(batch)}
 IMPORTANT:
 - Extract EVERY row. Do not skip any.
 - Use the quantity value from the spreadsheet exactly as-is. If empty, default to 0.
-- Normalize merchant and branch names to match existing database entries when possible.
-- If a row has no product name, skip it.`;
+- NEVER create duplicate entities. If "EBONYI" and "Ebonyi" both exist in the database, pick one and use it consistently for ALL rows.
+- If a row has no product name, skip it.
+- Be consistent: use the SAME exact name string for the same merchant/branch across ALL rows.`;
 
-			try {
-				const response = await this.client.chat.completions.create({
-					model: 'gpt-4o-mini',
-					messages: [
-						{
-							role: 'system',
-							content: 'You are a data extraction assistant. Always respond with valid JSON only. No markdown, no explanation, just JSON.',
-						},
-						{ role: 'user', content: prompt },
-					],
-					temperature: 0.1,
-					response_format: { type: 'json_object' },
-				});
-
+			return this.client.chat.completions.create({
+				model: 'gpt-4o-mini',
+				messages: [
+					{
+						role: 'system',
+						content: 'You are a data extraction assistant. Always respond with valid JSON only. No markdown, no explanation, just JSON.',
+					},
+					{ role: 'user', content: prompt },
+				],
+				temperature: 0.1,
+				response_format: { type: 'json_object' },
+			}).then(response => {
 				const content = response.choices[0]?.message?.content;
 				if (!content) {
 					throw new Error(`Empty response from OpenAI for batch ${batchNum}`);
 				}
-
 				const parsed = JSON.parse(content);
-				if (parsed.products && Array.isArray(parsed.products)) {
-					allProducts.push(...parsed.products);
-				}
-			} catch (error) {
+				this.logger.log(`Batch ${batchNum}/${totalBatches} completed (${batch.length} rows)`);
+				return parsed.products && Array.isArray(parsed.products) ? parsed.products : [];
+			}).catch(error => {
 				this.logger.error(`OpenAI batch ${batchNum} failed: ${error.message}`, error.stack);
 				throw error;
-			}
-		}
+			});
+		});
+
+		const batchResults = await Promise.all(batchPromises);
+		const allProducts = batchResults.flat();
 
 		this.logger.log(`AI extracted ${allProducts.length} products from ${rows.length} rows`);
 		return { products: allProducts };

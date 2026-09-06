@@ -31,6 +31,12 @@ async function bootstrap() {
 	SwaggerModule.setup('api/docs', app, document);
 
 	app.useGlobalGuards(jwtAuthGuard, rolesGuard);
+	// Increase timeout for bulk upload (5 minutes)
+	const server = app.getHttpServer();
+	server.setTimeout(5 * 60 * 1000);
+	server.keepAliveTimeout = 5 * 60 * 1000;
+	server.headersTimeout = 5 * 60 * 1000 + 1000;
+
 	const port = process.env.PORT ?? 3000;
 	await app.listen(port, '0.0.0.0');
 	console.log(`Application is running on port ${port}`);
