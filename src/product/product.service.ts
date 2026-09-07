@@ -267,35 +267,34 @@ export class ProductService {
 	}
 
 	/**
-	 * Normalize entity name for fuzzy matching: lowercase, strip whitespace, remove common suffixes like "branch"
+	 * Normalize entity name for fuzzy matching:
+	 * lowercase, collapse whitespace, strip "branch"/"store"/"outlet" suffixes, remove non-alphanumeric
 	 */
 	private normalizeEntityName(name: string): string {
 		return name
 			.toLowerCase()
-			.replace(/\s+/g, ' ')
-			.replace(/\bbranch\b/gi, '')
+			.replace(/\b(branch|store|outlet|location)\b/gi, '')
 			.replace(/[^a-z0-9+]/g, '')
 			.trim();
 	}
 
 	/**
-	 * Find matching entity ID from map using normalized fuzzy key.
-	 * Returns the matched ID or null if no match found.
+	 * Find matching entity ID from map (keyed by normalizeEntityName) using multi-level fuzzy matching.
 	 */
 	private resolveEntityName(name: string, idMap: Map<string, string>): string | null {
-		// 1. Try exact normalized match
+		if (!name) return null;
+
+		// 1. Exact normalized match (catches case differences, "branch" suffix, whitespace)
 		const normKey = this.normalizeEntityName(name);
 		if (idMap.has(normKey)) return idMap.get(normKey)!;
 
-		// 2. Try simple lowercase match (handles case-only differences)
-		const lowerKey = name.toLowerCase().trim();
-		for (const [key, id] of idMap) {
-			if (key === lowerKey) return id;
-		}
-
-		// 3. Try contains match (handles "Enugu Branch" vs "Enugu")
-		for (const [key, id] of idMap) {
-			if (normKey.includes(key) || key.includes(normKey)) return id;
+		// 2. Contains match — only if the normalized key is long enough to avoid false positives
+		if (normKey.length >= 3) {
+			for (const [key, id] of idMap) {
+				if (key.length >= 3 && (normKey.includes(key) || key.includes(normKey))) {
+					return id;
+				}
+			}
 		}
 
 		return null;
@@ -345,7 +344,7 @@ export class ProductService {
 			const [existingMerchants, existingBranches, existingProducts] = await Promise.all([
 				this.prisma.merchant.findMany({ select: { id: true, name: true } }),
 				this.prisma.branch.findMany({ select: { id: true, name: true } }),
-				this.prisma.product.findMany({ select: { name: true, merchantId: true } }),
+				this.prisma.product.findMany({ select: { id: true, name: true, merchantId: true } }),
 			]);
 
 			// 3. Send ALL rows to AI for extraction (batched internally)
@@ -419,10 +418,14 @@ export class ProductService {
 				this.logger.log(`Created new branch: "${name}" (${newBranch.id})`);
 			}
 
-			// 7. Build duplicate lookup set from existing products: "name|merchantId" (lowercase)
-			const existingProductSet = new Set(
-				existingProducts.map(p => `${p.name.toLowerCase()}|${p.merchantId}`),
-			);
+			// 7. Build duplicate lookup: normalized "productname|merchantId" -> existing product id
+			const existingProductMap = new Map<string, string>();
+			for (const p of existingProducts) {
+				const key = `${this.normalizeEntityName(p.name)}|${p.merchantId}`;
+				if (!existingProductMap.has(key)) {
+					existingProductMap.set(key, p.id);
+				}
+			}
 
 			// 8. Prepare products and stocks from AI-extracted data
 			const skipped: { name: string; reason: string }[] = [];
@@ -471,33 +474,38 @@ export class ProductService {
 					? this.resolveEntityName(item.branch_name, branchIdMap)
 					: null;
 
-				// Check for duplicates (DB + within this batch)
-				const dupeKey = `${productName.toLowerCase()}|${merchantId}`;
-				if (existingProductSet.has(dupeKey)) {
-					// Product already exists — but we may still need to add stock for a new branch
+				// Check for duplicates using normalized product name + merchantId
+				const dupeKey = `${this.normalizeEntityName(productName)}|${merchantId}`;
+				const existingProductId = existingProductMap.get(dupeKey);
+
+				if (existingProductId) {
+					// Product already exists — add stock for this branch if needed
 					if (branchId) {
-						const existingProduct = await this.prisma.product.findFirst({
-							where: { name: { equals: productName }, merchantId },
-							select: { id: true },
+						stocksToInsert.push({
+							productId: existingProductId,
+							branchId,
+							quantity: item.quantity || 0,
+							lowStockAlert: 10,
 						});
-						if (existingProduct) {
-							const existingStock = await this.prisma.productStock.findFirst({
-								where: { productId: existingProduct.id, branchId },
-							});
-							if (!existingStock) {
-								stocksToInsert.push({
-									productId: existingProduct.id,
-									branchId,
-									quantity: item.quantity || 0,
-									lowStockAlert: 10,
-								});
-							}
-						}
 					}
-					skipped.push({ name: productName, reason: 'Already exists under this merchant (stock updated if new branch)' });
+					skipped.push({ name: productName, reason: 'Already exists under this merchant (stock added for branch)' });
 					continue;
 				}
-				existingProductSet.add(dupeKey);
+
+				// Also check within this batch (same upload, different rows for same product)
+				if (existingProductMap.has(dupeKey)) {
+					const batchProductId = existingProductMap.get(dupeKey)!;
+					if (branchId) {
+						stocksToInsert.push({
+							productId: batchProductId,
+							branchId,
+							quantity: item.quantity || 0,
+							lowStockAlert: 10,
+						});
+					}
+					skipped.push({ name: productName, reason: 'Duplicate within upload batch (stock added for branch)' });
+					continue;
+				}
 
 				// Generate tracking ID
 				const merchantName = item.merchant_name || 'UNKN';
@@ -507,6 +515,9 @@ export class ProductService {
 				const trackingId = `${prefix}-${year}-${unique}`;
 
 				const productId = randomUUID();
+
+				// Register in map so later rows in same batch detect this as existing
+				existingProductMap.set(dupeKey, productId);
 
 				productsToInsert.push({
 					id: productId,
@@ -527,10 +538,18 @@ export class ProductService {
 				}
 			}
 
-			// 9. Batch insert in a single transaction
+			// 9. Deduplicate stocks (same product+branch should only appear once, keep last quantity)
+			const stockDedup = new Map<string, PreparedStock>();
+			for (const stock of stocksToInsert) {
+				const key = `${stock.productId}|${stock.branchId}`;
+				stockDedup.set(key, stock);
+			}
+			const dedupedStocks = [...stockDedup.values()];
+
+			// 10. Batch insert in a single transaction
 			let createdCount = 0;
 
-			if (productsToInsert.length > 0 || stocksToInsert.length > 0) {
+			if (productsToInsert.length > 0 || dedupedStocks.length > 0) {
 				await this.prisma.$transaction(async (tx) => {
 					if (productsToInsert.length > 0) {
 						await tx.product.createMany({
@@ -539,16 +558,16 @@ export class ProductService {
 						});
 					}
 
-					if (stocksToInsert.length > 0) {
+					if (dedupedStocks.length > 0) {
 						await tx.productStock.createMany({
-							data: stocksToInsert,
+							data: dedupedStocks,
 							skipDuplicates: true,
 						});
 					}
 				});
 
 				createdCount = productsToInsert.length;
-				this.logger.log(`Bulk inserted ${createdCount} products and ${stocksToInsert.length} stock records`);
+				this.logger.log(`Bulk inserted ${createdCount} products and ${dedupedStocks.length} stock records`);
 			}
 
 			// 10. Log activity
@@ -576,7 +595,7 @@ export class ProductService {
 					ai_extracted: aiResult.products.length,
 					new_merchants_created: newMerchantNames.size,
 					new_branches_created: newBranchNames.size,
-					stocks_created: stocksToInsert.length,
+					stocks_created: dedupedStocks.length,
 				},
 				skipped_duplicates: skipped,
 				errors,
